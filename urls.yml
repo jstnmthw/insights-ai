@@ -1,0 +1,3 @@
+# Place the urls you want to test in the urls array
+urls:
+  - https://tp.fazwaz.com/
