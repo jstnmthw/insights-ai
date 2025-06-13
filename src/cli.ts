@@ -1,10 +1,14 @@
 #!/usr/bin/env node
+import fs from 'fs';
+
 import chalk from 'chalk';
 import cliProgress from 'cli-progress';
 import Table from 'cli-table3';
-import fs from 'fs';
 import { Command } from 'commander';
+
+import { loadConfig } from './config/index.js';
 import { executeRuns } from './runner.js';
+import { setupGlobalHandlers, logError } from './utils/errorHandler.js';
 import {
   getScoreColor,
   getLcpColor,
@@ -18,8 +22,6 @@ import {
   getClsEmoji,
   getTbtEmoji,
 } from './utils/metrics.js';
-import { loadConfig } from './config/index.js';
-import { setupGlobalHandlers, logError } from './utils/errorHandler.js';
 
 async function main(): Promise<void> {
   // CLI options override env variables

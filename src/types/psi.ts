@@ -25,3 +25,26 @@ export interface MedianResult {
   medianTbt: number;
   individualRuns: RunResult[];
 }
+
+// PageSpeed Insights API response types
+export interface LighthouseAudit {
+  displayValue?: string;
+  numericValue?: number;
+}
+
+export interface LighthouseAudits {
+  [id: string]: LighthouseAudit;
+}
+
+export interface LighthouseResult {
+  categories: {
+    performance: {
+      score: number;
+    };
+  };
+  audits: LighthouseAudits;
+}
+
+export interface PsiApiResponse {
+  lighthouseResult: LighthouseResult;
+}

@@ -1,8 +1,9 @@
 import axios from 'axios';
-import { Metric, RunResult } from '../types/psi.js';
-import { ApiError } from '../errors/index.js';
 
-function extractMetric(audits: any, id: string): Metric {
+import { ApiError } from '../errors/index.js';
+import { Metric, RunResult, LighthouseAudits, PsiApiResponse } from '../types/psi.js';
+
+function extractMetric(audits: LighthouseAudits, id: string): Metric {
   return {
     display: audits[id]?.displayValue ?? 'n/a',
     numeric: audits[id]?.numericValue ?? 0,
@@ -15,9 +16,9 @@ export async function runPsi(
   strategy: 'desktop' | 'mobile',
   runNumber: number
 ): Promise<RunResult> {
-  let data: any;
+  let data: PsiApiResponse;
   try {
-    const resp = await axios.get(
+    const resp = await axios.get<PsiApiResponse>(
       'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
       {
         params: { url, strategy, key: apiKey },

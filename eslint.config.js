@@ -45,7 +45,7 @@ export default [
       'prettier/prettier': 'error',
 
       // General rules
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': 'off',
       'no-debugger': 'warn',
       'no-duplicate-imports': 'error',
       'no-unused-vars': 'off', // Using TypeScript's no-unused-vars instead

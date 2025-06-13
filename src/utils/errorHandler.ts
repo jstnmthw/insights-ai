@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+
 import { AppError } from '../errors/index.js';
 
 export function logError(err: unknown): void {

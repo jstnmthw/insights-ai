@@ -1,5 +1,7 @@
 import fs from 'fs';
+
 import YAML from 'yaml';
+
 import 'dotenv/config';
 import { ConfigError } from '../errors/index.js';
 
