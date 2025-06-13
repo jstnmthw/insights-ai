@@ -13,6 +13,7 @@ This document outlines the best practices and standards for the InsightsAI proje
 8. [Development Workflow](#development-workflow)
 9. [Code Style Guide](#code-style-guide)
 10. [Future Improvements](#future-improvements)
+11. [TypeScript Standards](#type-script-standards)
 
 ## Project Structure
 
@@ -156,9 +157,9 @@ describe('PSI Service', () => {
 ```
 
 ### 3. Test Coverage
-- Aim for >80% test coverage
-- Use Jest for testing
-- Implement CI/CD pipeline with automated testing
+- Aim for **≥98 %** line & statement coverage (enforced in CI)
+- Use **Vitest** with Istanbul provider for coverage
+- Run the suite in both fast-fail (`pnpm test`) and coverage modes (`pnpm test:coverage`) in CI
 
 ## Performance Optimization
 
@@ -322,6 +323,24 @@ let currentProgress;
    - Additional features
    - Infrastructure improvements
    - UI enhancements
+
+## TypeScript Standards
+
+The codebase is compiled with **`"strict": true`** and follows these additional rules:
+
+1. **Never use `any`.**
+   • If third-party libraries lack type definitions, first look for `@types/` packages on npm.<br/>
+   • If none exist, create a minimal declaration in `src/types/` instead of casting to `any`.
+2. **Prefer `unknown` over `any`** when a truly dynamic value is required; perform type-guards before use.
+3. **No implicit `any` or `this` errors** – always annotate function parameters and return types when inference is not obvious.
+4. **Enable and respect** the following compiler flags (already set in `tsconfig.json`):
+   * `strictNullChecks`, `noImplicitAny`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `exactOptionalPropertyTypes`.
+5. **Leverage utility types** (`Partial`, `Required`, `Readonly`, `Record`, etc.) rather than manual mappings.
+6. **Prefer composition over inheritance** – use interfaces & type aliases to compose behaviour.
+7. **Keep domain models in `src/types/`** and import from there, never duplicate ad-hoc interfaces across modules.
+8. **Avoid namespace pollution** – use `import type { … }` for type-only imports.
+9. **Generic functions & classes** must be constrained (`<T extends ...>`) to avoid overly-broad generics.
+10. **ESM only** – no `require` or CommonJS interop except in `node:` built-ins where unavoidable.
 
 ## Conclusion
 

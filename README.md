@@ -173,17 +173,19 @@ MIT – see `LICENSE` for full text.
 ### Lint, Format, Type-Check, Test
 
 ```sh
-$ pnpm lint        # ESLint
-$ pnpm format      # Prettier
-$ pnpm type-check  # TypeScript strict type checking
-$ pnpm test        # Jest unit tests (with coverage)
+$ pnpm lint         # ESLint
+$ pnpm format       # Prettier
+$ pnpm type-check   # TypeScript strict type checking
+$ pnpm test         # Run the Vitest suite once
+$ pnpm test:watch   # Watch mode for rapid feedback
+$ pnpm test:coverage # Generate Istanbul coverage report (≥ 98 % required)
 ```
 
 ### Pre-commit hooks
 Husky + lint-staged auto-fix and format code before every commit.
 
 ### Continuous Integration
-CI is set up to run lint, type-check, and tests on every push/PR (see `.github/workflows/ci.yml`).
+CI runs lint, type-check and the complete Vitest suite (with coverage threshold **98 % lines/statements**) on every push/PR.
 
 ### Project Structure
 
@@ -194,13 +196,15 @@ CI is set up to run lint, type-check, and tests on every push/PR (see `.github/w
 
 ## Testing
 
-Unit tests are written with Jest. Run all tests:
+The project uses **[Vitest](https://vitest.dev)** for both unit and integration tests. Coverage is collected with Istanbul and enforced in CI.
 
 ```sh
-$ pnpm test
+$ pnpm test            # one-off run
+$ pnpm test:watch      # interactive watch mode
+$ pnpm test:coverage   # generates HTML & lcov reports in /coverage
 ```
 
-Test coverage is reported in the CLI and required by CI.
+Current suite exceeds **98 %** line and statement coverage while exercising all critical paths (config errors, disk-write failures, API failure handling, etc.).
 
 ## Contributing
 

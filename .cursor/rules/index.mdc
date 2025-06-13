@@ -32,6 +32,14 @@ You are an advanced AI coding assistant embedded in the InsightsAI project. This
 - Prefer TypeScript for type safety and maintainability.
 - Use clear, descriptive names for files, classes, functions, and variables.
 
+### 2a. TypeScript Strictness
+- All code is written in TypeScript with `strict` compiler flag enabled.
+- **Never use `any`**; if external types are missing, install `@types` or add a declaration in `src/types/`.
+- Prefer `unknown` with proper type narrowing over `any`.
+- Use utility types and generics responsibly; constrain generics.
+- Type-only imports should use `import type`.
+- Ensure the project compiles with `pnpm type-check` without suppressions.
+
 ### 3. Error Handling
 - Use custom error classes for different error types (e.g., APIError, ValidationError).
 - Centralize error handling logic.
@@ -40,10 +48,10 @@ You are an advanced AI coding assistant embedded in the InsightsAI project. This
 
 ### 4. Testing
 - Write unit tests for all utility and business logic functions.
-- Write integration tests for service interactions.
-- Use Jest or a similar framework.
-- Aim for >80% test coverage.
-- Ensure all new code is covered by tests.
+- Write integration tests for service interactions and CLI workflows.
+- Use **Vitest** with Istanbul coverage provider.
+- Aim for **≥98 %** line & statement coverage (enforced in CI).
+- Ensure all new and refactored code is accompanied by tests.
 
 ### 5. Performance
 - Use concurrency controls (e.g., p-limit) for API calls.
