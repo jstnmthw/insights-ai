@@ -5,7 +5,19 @@ import Table from 'cli-table3';
 import fs from 'fs';
 import { Command } from 'commander';
 import { executeRuns } from './runner.js';
-import { getScoreColor, getLcpColor, getFcpColor, getClsColor, getTbtColor, colorize, getScoreEmoji, getLcpEmoji, getFcpEmoji, getClsEmoji, getTbtEmoji } from './utils/metrics.js';
+import {
+  getScoreColor,
+  getLcpColor,
+  getFcpColor,
+  getClsColor,
+  getTbtColor,
+  colorize,
+  getScoreEmoji,
+  getLcpEmoji,
+  getFcpEmoji,
+  getClsEmoji,
+  getTbtEmoji,
+} from './utils/metrics.js';
 import { loadConfig } from './config/index.js';
 import { setupGlobalHandlers, logError } from './utils/errorHandler.js';
 
@@ -44,7 +56,8 @@ async function main(): Promise<void> {
 
   const totalTests = cfg.urls.length * cfg.strategies.length * cfg.runsPerUrl;
   const progressBar = new cliProgress.SingleBar({
-    format: 'Progress |' + chalk.cyan('{bar}') + '| {percentage}% | {value}/{total} tests | ETA: {eta}s',
+    format:
+      'Progress |' + chalk.cyan('{bar}') + '| {percentage}% | {value}/{total} tests | ETA: {eta}s',
     barCompleteChar: '\u2588',
     barIncompleteChar: '\u2591',
     hideCursor: true,
@@ -59,7 +72,9 @@ async function main(): Promise<void> {
   // Display results table
   console.log(chalk.bold('Final Results (Medians):\n'));
   const finalTable = new Table({
-    head: ['URL', 'Strategy', 'Runs', 'Score', 'LCP', 'FCP', 'CLS', 'TBT'].map((h) => chalk.gray.bold(h)),
+    head: ['URL', 'Strategy', 'Runs', 'Score', 'LCP', 'FCP', 'CLS', 'TBT'].map((h) =>
+      chalk.gray.bold(h)
+    ),
     colAligns: ['left', 'center', 'center', 'right', 'right', 'right', 'right', 'right'],
   });
 
@@ -88,7 +103,8 @@ async function main(): Promise<void> {
   let mdContent = `# InsightsAI Analysis\n\n${subheader}\n${runInfo}\n\n`;
   mdContent += '## Legend\n\n';
   mdContent += '- 🟢 Good: Performance meets or exceeds recommended thresholds\n';
-  mdContent += '- 🟡 Needs Improvement: Performance is below recommended thresholds but not critical\n';
+  mdContent +=
+    '- 🟡 Needs Improvement: Performance is below recommended thresholds but not critical\n';
   mdContent += '- 🔴 Poor: Performance is significantly below recommended thresholds\n\n';
 
   mdContent += '## Final Results (Medians)\n\n';

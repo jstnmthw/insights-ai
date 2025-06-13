@@ -26,4 +26,4 @@ export function setupGlobalHandlers(): void {
     logError(err);
     process.exit(1);
   });
-} 
+}

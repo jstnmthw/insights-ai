@@ -33,7 +33,9 @@ export function loadConfig(): AppConfig {
     throw new ConfigError(`No URLs found in ${cfgPath}`);
   }
 
-  const strategies = (process.env.PSI_STRATEGIES || 'desktop,mobile').split(',').map((s: string) => s.trim());
+  const strategies = (process.env.PSI_STRATEGIES || 'desktop,mobile')
+    .split(',')
+    .map((s: string) => s.trim());
   const concurrency = parseInt(process.env.PSI_CONCURRENCY || '4', 10);
   const runsPerUrl = parseInt(process.env.PSI_RUNS_PER_URL || '1', 10);
 
@@ -45,4 +47,4 @@ export function loadConfig(): AppConfig {
     runsPerUrl,
     cfgPath,
   };
-} 
+}

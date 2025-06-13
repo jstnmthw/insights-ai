@@ -13,13 +13,16 @@ export async function runPsi(
   url: string,
   apiKey: string,
   strategy: 'desktop' | 'mobile',
-  runNumber: number,
+  runNumber: number
 ): Promise<RunResult> {
   let data: any;
   try {
-    const resp = await axios.get('https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed', {
-      params: { url, strategy, key: apiKey },
-    });
+    const resp = await axios.get(
+      'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
+      {
+        params: { url, strategy, key: apiKey },
+      }
+    );
     data = resp.data;
   } catch (err) {
     throw new ApiError('Failed to fetch PageSpeed Insights data', err);
@@ -38,4 +41,4 @@ export async function runPsi(
     cls: extractMetric(core, 'cumulative-layout-shift'),
     tbt: extractMetric(core, 'total-blocking-time'),
   };
-} 
+}

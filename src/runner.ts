@@ -1,10 +1,13 @@
 import pLimit from 'p-limit';
+
 import { loadConfig } from './config/index.js';
 import { runPsi } from './services/psiService.js';
 import { MedianResult, RunResult } from './types/psi.js';
 import { median } from './utils/metrics.js';
 
-export async function executeRuns(onProgress?: (completed: number, total: number) => void): Promise<MedianResult[]> {
+export async function executeRuns(
+  onProgress?: (completed: number, total: number) => void
+): Promise<MedianResult[]> {
   const cfg = loadConfig();
   const limit = pLimit(cfg.concurrency);
 
@@ -21,7 +24,7 @@ export async function executeRuns(onProgress?: (completed: number, total: number
             completed += 1;
             onProgress?.(completed, total);
             return res;
-          }),
+          })
         );
       }
     }
@@ -41,11 +44,11 @@ export async function executeRuns(onProgress?: (completed: number, total: number
   const medians: MedianResult[] = [];
   for (const [key, runs] of grouped) {
     const [url, strategy] = key.split('|');
-    const scores = runs.map(r => r.score);
-    const lcps = runs.map(r => r.lcp.numeric);
-    const fcps = runs.map(r => r.fcp.numeric);
-    const clss = runs.map(r => r.cls.numeric);
-    const tbts = runs.map(r => r.tbt.numeric);
+    const scores = runs.map((r) => r.score);
+    const lcps = runs.map((r) => r.lcp.numeric);
+    const fcps = runs.map((r) => r.fcp.numeric);
+    const clss = runs.map((r) => r.cls.numeric);
+    const tbts = runs.map((r) => r.tbt.numeric);
 
     medians.push({
       url,
@@ -61,4 +64,4 @@ export async function executeRuns(onProgress?: (completed: number, total: number
   }
 
   return medians;
-} 
+}

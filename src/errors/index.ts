@@ -13,4 +13,4 @@ export class AppError extends Error {
 }
 
 export class ConfigError extends AppError {}
-export class ApiError extends AppError {} 
+export class ApiError extends AppError {}

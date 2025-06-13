@@ -49,4 +49,4 @@ export function median(values: number[]): number {
 // Helper for applying chalk color based on TrafficLightColor
 export function colorize(value: string | number, color: TrafficLightColor): string {
   return chalk[color](value);
-} 
+}

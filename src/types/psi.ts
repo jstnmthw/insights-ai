@@ -24,4 +24,4 @@ export interface MedianResult {
   medianCls: number;
   medianTbt: number;
   individualRuns: RunResult[];
-} 
+}
