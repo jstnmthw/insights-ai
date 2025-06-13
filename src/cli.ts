@@ -17,12 +17,8 @@ import {
   getClsColor,
   getTbtColor,
   colorize,
-  getScoreEmoji,
-  getLcpEmoji,
-  getFcpEmoji,
-  getClsEmoji,
-  getTbtEmoji,
 } from './utils/metrics.js';
+import { buildMarkdownReport } from './utils/reportBuilder.js';
 
 async function main(): Promise<void> {
   // CLI options override env variables
@@ -103,20 +99,8 @@ async function main(): Promise<void> {
 
   console.log(finalTable.toString());
 
-  // Generate Markdown report
-  let mdContent = `# InsightsAI Analysis\n\n${subheaderPlain}\n${runInfo}\n\n`;
-  mdContent += '## Legend\n\n';
-  mdContent += '- 🟢 Good: Performance meets or exceeds recommended thresholds\n';
-  mdContent +=
-    '- 🟡 Needs Improvement: Performance is below recommended thresholds but not critical\n';
-  mdContent += '- 🔴 Poor: Performance is significantly below recommended thresholds\n\n';
-
-  mdContent += '## Final Results (Medians)\n\n';
-  mdContent += '| URL | Strategy | Runs | Score | LCP | FCP | CLS | TBT |\n';
-  mdContent += '| :-- | :------: | :--: | ----: | --: | --: | --: | --: |\n';
-  medianResults.forEach((r) => {
-    mdContent += `| ${r.url} | ${r.strategy} | ${r.runs} | ${getScoreEmoji(r.medianScore)} ${r.medianScore} | ${getLcpEmoji(r.medianLcp)} ${formatMetric(r.medianLcp)} | ${getFcpEmoji(r.medianFcp)} ${formatMetric(r.medianFcp)} | ${getClsEmoji(r.medianCls)} ${r.medianCls.toFixed(3)} | ${getTbtEmoji(r.medianTbt)} ${formatMetric(r.medianTbt)} |\n`;
-  });
+  // Generate Markdown report using helper
+  const mdContent = buildMarkdownReport(cfg, medianResults, subheaderPlain, runInfo);
 
   const outDir = 'logs';
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir);
@@ -126,7 +110,13 @@ async function main(): Promise<void> {
 
 setupGlobalHandlers();
 
-main().catch((err) => {
-  logError(err);
-  process.exit(1);
-});
+// Exporting for testability
+export { main };
+
+// c8 ignore next 8
+if (!('vitest' in import.meta)) {
+  main().catch((err) => {
+    logError(err);
+    process.exit(1);
+  });
+}

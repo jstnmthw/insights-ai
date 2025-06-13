@@ -46,6 +46,7 @@ $ pnpm dev                      # uses ts-node & ESM loader
 
 # You can also install globally after build:
 $ pnpm link          # makes `InsightsAI` available system-wide
+```
 
 ## CLI Usage
 
