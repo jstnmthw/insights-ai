@@ -4,6 +4,32 @@ A robust Node.js CLI tool that batch‑runs Google PageSpeed Insights for any li
 
 ---
 
+## Table of Contents
+- [Features](#features)
+- [Quick start](#quick-start)
+- [CLI Usage](#cli-usage)
+  - [.env](#env)
+  - [Config file format](#config-file-format)
+- [Environment Variables](#environment-variables)
+- [pnpm scripts](#pnpm-scripts)
+- [Output](#output)
+  - [Console Output](#console-output)
+  - [Markdown Report](#markdown-report)
+- [Multiple Runs & Reliability](#multiple-runs--reliability)
+- [Customising](#customising)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+- [Development & Quality](#development--quality)
+  - [Lint, Format, Type-Check, Test](#lint-format-type-check-test)
+  - [Pre-commit hooks](#pre-commit-hooks)
+  - [Continuous Integration](#continuous-integration)
+  - [Automated Releases](#automated-releases)
+  - [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Contributing](#contributing)
+
+---
+
 ## Features
 
 * Runs desktop and mobile tests for every URL
@@ -185,6 +211,11 @@ Husky + lint-staged auto-fix and format code before every commit.
 
 ### Continuous Integration
 CI runs lint, type-check and the complete Vitest suite (with coverage threshold **98 % lines/statements**) on every push/PR.
+
+### Automated Releases
+This project uses **[semantic-release](https://semantic-release.gitbook.io/semantic-release/)** to automate versioning, changelog generation, and release publishing. All releases are triggered automatically from the `main` branch based on conventional commit messages.
+
+For a detailed guide on the release workflow, see [**Automated Releases**](./docs/AUTOMATED_RELEASES.md).
 
 ### Project Structure
 
