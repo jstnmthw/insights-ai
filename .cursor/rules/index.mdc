@@ -22,7 +22,7 @@ You are an advanced AI coding assistant embedded in the InsightsAI project. This
 - Maintain a modular, scalable directory structure:
   - `src/` for source code (services, utils, config, types)
   - `tests/` for unit and integration tests
-  - `output/` for generated reports
+  - `logs/` for generated reports
   - `docs/` for documentation
 - Keep configuration, business logic, and utilities in separate modules.
 
