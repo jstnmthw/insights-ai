@@ -53,6 +53,7 @@ async function main(): Promise<void> {
   console.clear();
   const header = gradient(['#4A90E2', '#8E44AD', '#E91E63'])('InsightsAI') + ' - Running Analysis';
   const subheader = `Testing ${chalk.green(cfg.urls.length)} URL(s) × ${chalk.green(cfg.strategies.length)} strategies × ${chalk.green(cfg.runsPerUrl)} run(s)`;
+  const subheaderPlain = `Testing ${cfg.urls.length} URL(s) × ${cfg.strategies.length} strategies × ${cfg.runsPerUrl} run(s)`;
   const runInfo = `Started at ${runDate}`;
 
   console.log(`${header}\n${subheader}\n${runInfo}\n`);
@@ -103,7 +104,7 @@ async function main(): Promise<void> {
   console.log(finalTable.toString());
 
   // Generate Markdown report
-  let mdContent = `# InsightsAI Analysis\n\n${subheader}\n${runInfo}\n\n`;
+  let mdContent = `# InsightsAI Analysis\n\n${subheaderPlain}\n${runInfo}\n\n`;
   mdContent += '## Legend\n\n';
   mdContent += '- 🟢 Good: Performance meets or exceeds recommended thresholds\n';
   mdContent +=
