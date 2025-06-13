@@ -29,23 +29,22 @@ $ git clone <repo> InsightsAI && cd InsightsAI
 $ pnpm install
 
 # 2  Create and populate your .env file
-$ touch .env
-#   Open .env and add the following, replacing the placeholder key:
+$ touch .env                    # Open .env and add the following, replacing the placeholder key:
 
 # 3  Define the URLs to audit
-$ cp urls.example.yml urls.yml
-#   edit urls.yml to list your pages
+$ cp urls.example.yml urls.yml  # Edit urls.yml to list your pages
 
 # 4  Build the TypeScript project
 $ pnpm build
+
 # 5  Run the CLI (built)
-$ pnpm start                    # uses urls.yml by default
+$ pnpm start                    # Uses urls.yml by default
 
 # Or run directly in dev mode with ts-node:
-$ pnpm dev                      # uses ts-node & ESM loader
+$ pnpm dev                      # Uses ts-node & ESM loader
 
 # You can also install globally after build:
-$ pnpm link          # makes `InsightsAI` available system-wide
+$ pnpm link                     # Makes `InsightsAI` available system-wide
 ```
 
 ## CLI Usage
