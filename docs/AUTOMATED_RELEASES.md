@@ -1,5 +1,27 @@
 # Understanding the Release Workflow in InsightsAI
 
+## Table of Contents
+- [Overview](#overview)
+- [How It Works](#how-it-works)
+  - [Commit Message Convention](#1-commit-message-convention)
+  - [Release Process Flow](#2-release-process-flow)
+  - [Example Workflow](#3-example-workflow)
+- [Best Practices](#4-best-practices)
+  - [Commit Messages](#commit-messages)
+  - [Branch Management](#branch-management)
+  - [Release Review](#release-review)
+- [Common Scenarios](#5-common-scenarios)
+  - [Hotfix Release](#1-hotfix-release)
+  - [Feature Release](#2-feature-release)
+  - [Breaking Change](#3-breaking-change)
+- [Troubleshooting](#6-troubleshooting)
+- [GitHub Token Configuration](#7-github-token-configuration)
+  - [Create a Personal Access Token (PAT)](#1-create-a-personal-access-token-pat)
+  - [Configure Repository Secret](#2-configure-repository-secret)
+  - [Update GitHub Actions Workflow](#3-update-github-actions-workflow)
+  - [Common Issues](#4-common-issues)
+- [References](#references)
+
 ## Overview
 
 This document explains how our automated release process works in InsightsAI using `semantic-release` and GitHub Actions. The system automatically handles versioning, changelog generation, and release publishing based on your commit messages.
@@ -133,6 +155,45 @@ If a release doesn't happen as expected:
 3. **Check Permissions**
    - Ensure GitHub token has proper permissions
    - Verify branch protection rules
+   - If using GitHub Actions, you need a Personal Access Token (PAT) with:
+     - `repo` (Full control of private repositories)
+     - `workflow` (Update GitHub Action workflows)
+   - Add the PAT as a repository secret (e.g., `GH_TOKEN`)
+   - Update the workflow to use `GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}`
+   - Add `fetch-depth: 0` to the checkout action to ensure full git history access
+
+### 7. GitHub Token Configuration
+
+For semantic-release to work properly in GitHub Actions, you need to configure the correct permissions:
+
+1. **Create a Personal Access Token (PAT)**
+   - Go to GitHub Settings → Developer Settings → Personal Access Tokens
+   - Create a new token with these permissions:
+     - `repo` (Full control of private repositories)
+     - `workflow` (Update GitHub Action workflows)
+   - Set an appropriate expiration date
+   - Copy the generated token
+
+2. **Configure Repository Secret**
+   - Go to your repository's Settings → Secrets and variables → Actions
+   - Create a new repository secret named `GH_TOKEN`
+   - Paste your PAT as the value
+
+3. **Update GitHub Actions Workflow**
+   ```yaml
+   - uses: actions/checkout@v4
+     with:
+       fetch-depth: 0  # Required for semantic-release
+   - name: Semantic Release
+     env:
+       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # Use PAT instead of default GITHUB_TOKEN
+     run: npx semantic-release
+   ```
+
+4. **Common Issues**
+   - If you see "Permission denied" errors, verify your PAT has the correct permissions
+   - If semantic-release can't access git history, ensure `fetch-depth: 0` is set
+   - If releases aren't being created, check that the PAT has `repo` access
 
 ## References
 
