@@ -11,8 +11,8 @@
     "lint": "eslint --ext .ts src",
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "jest --coverage",
-    "prepare": "husky install",
-    "pagespeed": "node dist/cli.js"
+    "pagespeed": "node dist/cli.js",
+    "prepare": "husky install"
   },
   "keywords": [],
   "author": "",
@@ -29,7 +29,7 @@
     "p-limit": "^6.2.0",
     "yaml": "^2.8.0"
   },
-  "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912",
+  "packageManager": "pnpm@10.12.1+sha256.889bac470ec93ccc3764488a19d6ba8f9c648ad5e50a9a6e4be3768a5de387a3",
   "devDependencies": {
     "@types/cli-progress": "^3.11.6",
     "@types/node": "^20.10.6",
@@ -46,13 +46,16 @@
     "prettier": "^3.5.3",
     "@typescript-eslint/parser": "^6.14.0",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
-    "husky": "^9.1.7",
+    "husky": "^8.0.0",
     "lint-staged": "^16.1.0"
   },
   "bin": {
     "InsightsAI": "dist/cli.js"
   },
   "lint-staged": {
-    "src/**/*.ts": ["eslint --fix", "prettier --write"]
+    "src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }
