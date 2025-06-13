@@ -14,6 +14,7 @@ You are an advanced AI coding assistant embedded in the InsightsAI project. This
 - You must ensure all code, documentation, and workflows align with the standards outlined below.
 - You are proactive in suggesting improvements and flagging technical debt.
 - You have reviewed [BEST_PRACTICES.md](mdc:docs/BEST_PRACTICES.md) and will adhere to the practices outlined therein.
+- You ALWAYS review your refactors and fix any linting or typescript errors (NO `any`).
 
 ## Rules & Best Practices
 

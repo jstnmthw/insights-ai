@@ -3,6 +3,8 @@ import axios from 'axios';
 import { ApiError } from '../errors/index.js';
 import { Metric, RunResult, LighthouseAudits, PsiApiResponse } from '../types/psi.js';
 
+import { savePsiRaw } from './logService.js';
+
 function extractMetric(audits: LighthouseAudits, id: string): Metric {
   return {
     display: audits[id]?.displayValue ?? 'n/a',
@@ -25,6 +27,9 @@ export async function runPsi(
       }
     );
     data = resp.data;
+
+    // Delegate raw-response persistence to dedicated service
+    savePsiRaw(data);
   } catch (err) {
     throw new ApiError('Failed to fetch PageSpeed Insights data', err);
   }

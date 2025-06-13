@@ -20,7 +20,7 @@ This document outlines the best practices and standards for the InsightsAI proje
 ```
 InsightsAI/
 ├── docs/                  # Documentation
-├── output/               # Generated reports
+├── logs/                 # Generated reports
 ├── src/                  # Source code (to be implemented)
 ├── tests/                # Test files (to be implemented)
 ├── .env.example         # Environment variables template
@@ -45,7 +45,7 @@ InsightsAI/
 │   ├── unit/            # Unit tests
 │   ├── integration/     # Integration tests
 │   └── fixtures/        # Test fixtures
-├── output/              # Generated reports
+├── logs/                # Generated reports
 ├── scripts/             # Build and utility scripts
 ├── .env.example        # Environment variables template
 ├── .gitignore          # Git ignore rules

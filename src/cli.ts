@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import cliProgress from 'cli-progress';
 import Table from 'cli-table3';
 import { Command } from 'commander';
+import gradient from 'gradient-string';
 
 import { loadConfig } from './config/index.js';
 import { executeRuns } from './runner.js';
@@ -50,8 +51,8 @@ async function main(): Promise<void> {
   const runDate = now.toLocaleString();
 
   console.clear();
-  const header = chalk.bold('InsightsAI Analysis');
-  const subheader = `Testing ${cfg.urls.length} URL(s) × ${cfg.strategies.length} strategies × ${cfg.runsPerUrl} run(s)`;
+  const header = gradient(['#4A90E2', '#8E44AD', '#E91E63'])('InsightsAI') + ' - Running Analysis';
+  const subheader = `Testing ${chalk.green(cfg.urls.length)} URL(s) × ${chalk.green(cfg.strategies.length)} strategies × ${chalk.green(cfg.runsPerUrl)} run(s)`;
   const runInfo = `Started at ${runDate}`;
 
   console.log(`${header}\n${subheader}\n${runInfo}\n`);
@@ -116,7 +117,7 @@ async function main(): Promise<void> {
     mdContent += `| ${r.url} | ${r.strategy} | ${r.runs} | ${getScoreEmoji(r.medianScore)} ${r.medianScore} | ${getLcpEmoji(r.medianLcp)} ${formatMetric(r.medianLcp)} | ${getFcpEmoji(r.medianFcp)} ${formatMetric(r.medianFcp)} | ${getClsEmoji(r.medianCls)} ${r.medianCls.toFixed(3)} | ${getTbtEmoji(r.medianTbt)} ${formatMetric(r.medianTbt)} |\n`;
   });
 
-  const outDir = 'output';
+  const outDir = 'logs';
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir);
   fs.writeFileSync(`${outDir}/psi-report-${timestamp}.md`, mdContent);
   console.log(chalk.green(`\n📄 Report saved to: ${outDir}/psi-report-${timestamp}.md`));

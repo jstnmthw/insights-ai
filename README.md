@@ -16,7 +16,7 @@ A robust Node.js CLI tool that batch‑runs Google PageSpeed Insights for any li
 * **Color-coded metrics** based on Google's official thresholds
 * **Emoji indicators** in Markdown reports for quick visual assessment
 * Outputs clean ASCII tables with **muted gray headers**
-* **Timestamped Markdown reports** saved to `output/` directory
+* **Timestamped Markdown reports** saved to `logs/` directory
 * Uses Google's public REST API – no local Chrome or Lighthouse required
 
 ---
@@ -115,7 +115,7 @@ The tool provides two types of output:
 - All tables use **muted gray headers** and **traffic-light colors** for metrics
 
 ### Markdown Report
-- Saved to `output/psi-report-YYYY-MM-DDTHH-MM-SS.md`
+- Saved to `logs/psi-report-YYYY-MM-DDTHH-MM-SS.md`
 - Contains the same data as console output in markdown format
 - Includes individual runs (when applicable) and final median results
 - **Color-coded emoji indicators** (🟢 Good, 🟡 Needs Improvement, 🔴 Poor) for quick visual assessment
@@ -188,7 +188,7 @@ CI is set up to run lint, type-check, and tests on every push/PR (see `.github/w
 
 - `src/` – source code (modular: config, services, utils, types, errors)
 - `tests/` – unit and integration tests
-- `output/` – generated reports
+- `logs/` – generated reports
 - `docs/` – documentation
 
 ## Testing
