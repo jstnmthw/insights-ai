@@ -41,6 +41,13 @@ describe('logService', () => {
       const expected = 'psi-raw-desktop-example.com_page_foo=bar&baz=qux.json';
       expect(getReportFilename(url, strategy)).toBe(expected);
     });
+
+    it('should handle invalid URLs gracefully', () => {
+      const invalidUrl = 'not-a-valid-url';
+      const strategy = 'desktop';
+      const expected = 'psi-raw-desktop-not-a-valid-url.json';
+      expect(getReportFilename(invalidUrl, strategy)).toBe(expected);
+    });
   });
 
   describe('saveRawReport', () => {

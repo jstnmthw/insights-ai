@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { loadConfig } from '../../src/config/index.js';
@@ -98,5 +98,28 @@ describe('config/loadConfig', () => {
 
     const cfg = loadConfig();
     expect(cfg.ai).toEqual({ enabled: true, apiKey: 'openai-key', model: 'gpt-3.5-turbo' });
+  });
+
+  it('warns and disables AI when enabled but API key missing', () => {
+    const originalWarn = console.warn;
+    const warnSpy = vi.fn();
+    console.warn = warnSpy;
+
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: fixturePath,
+      AI_SUMMARY_ENABLED: 'true',
+      OPENAI_API_KEY: undefined,
+    });
+
+    const cfg = loadConfig();
+    
+    expect(warnSpy).toHaveBeenCalledWith(
+      'AI summaries are enabled (AI_SUMMARY_ENABLED=true), but OPENAI_API_KEY is missing. Skipping summaries.'
+    );
+    expect(cfg.ai.enabled).toBe(false);
+    expect(cfg.ai.apiKey).toBeUndefined();
+
+    console.warn = originalWarn;
   });
 });

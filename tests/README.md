@@ -20,7 +20,7 @@ pnpm test:watch     # interactive watch mode for development
 pnpm test:coverage  # generates coverage report (HTML + lcov)
 ```
 
-> Coverage thresholds are enforced in CI to remain above **80 %**.
+> Coverage thresholds are enforced in CI to remain above **98 %** for line and statement coverage.
 
 ## Writing new tests
 

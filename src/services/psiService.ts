@@ -12,6 +12,15 @@ function extractMetric(audits: LighthouseAudits, id: string): Metric {
   };
 }
 
+// Check if we're in development mode
+function isDevelopmentMode(): boolean {
+  return (
+    process.env.NODE_ENV === 'development' ||
+    process.argv[1]?.includes('tsx') ||
+    process.argv[1]?.includes('ts-node')
+  );
+}
+
 export async function runPsi(
   url: string,
   apiKey: string,
@@ -20,12 +29,33 @@ export async function runPsi(
 ): Promise<RunResult> {
   let data: PsiApiResponse;
 
-  const filename = getReportFilename(url, strategy);
-  const cachedReport = readRawReport(filename);
+  const isDevMode = isDevelopmentMode();
 
-  if (cachedReport) {
-    data = cachedReport;
+  if (isDevMode) {
+    const filename = getReportFilename(url, strategy);
+    const cachedReport = readRawReport(filename);
+
+    if (cachedReport) {
+      console.log('[DEV] Existing Report: Found');
+      data = cachedReport;
+    } else {
+      console.log('[DEV] Existing Report: Missing');
+      try {
+        const resp = await axios.get<PsiApiResponse>(
+          'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
+          {
+            params: { url, strategy, key: apiKey },
+          }
+        );
+        data = resp.data;
+
+        saveRawReport(filename, data);
+      } catch (err) {
+        throw new ApiError('Failed to fetch PageSpeed Insights data', err);
+      }
+    }
   } else {
+    // Production mode: always fetch fresh data, no caching
     try {
       const resp = await axios.get<PsiApiResponse>(
         'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
@@ -34,8 +64,6 @@ export async function runPsi(
         }
       );
       data = resp.data;
-
-      saveRawReport(filename, data);
     } catch (err) {
       throw new ApiError('Failed to fetch PageSpeed Insights data', err);
     }

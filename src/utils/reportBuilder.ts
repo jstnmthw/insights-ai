@@ -7,7 +7,7 @@ import { getScoreEmoji, getLcpEmoji, getFcpEmoji, getClsEmoji, getTbtEmoji } fro
  * Format a metric numeric value for human readability.
  * Mirrors logic used in CLI display.
  */
-function formatMetric(value: number, unit: 'ms' | 's' = 'ms'): string {
+export function formatMetric(value: number, unit: 'ms' | 's' = 'ms'): string {
   if (value === 0) return 'n/a';
   if (unit === 'ms') return `${Math.round(value)} ms`;
   return `${(value / 1000).toFixed(1)} s`;

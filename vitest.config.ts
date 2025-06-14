@@ -9,6 +9,12 @@ export default defineConfig({
       reporter: ['text', 'html', 'lcov'],
       exclude: ['dist', 'coverage', 'node_modules', 'src/cli.ts'],
       all: true,
+      thresholds: {
+        statements: 98,
+        branches: 85,
+        functions: 100,
+        lines: 98,
+      },
     },
   },
 }); 
