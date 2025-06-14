@@ -3,13 +3,6 @@ import { URL } from 'node:url';
 import { ApiError } from '../errors/index.js';
 import type { ComprehensivePsiData } from '../types/psi.js';
 
-/**
- * Subset of the Lighthouse data that we care about for the AI prompt.
- * Consumers may supply any JSON-serialisable data – this service will simply
- * embed it into the prompt verbatim.
- */
-export type CondensedPsiData = Record<string, unknown>;
-
 export interface GptServiceOptions {
   apiKey: string;
   /** Optional – override the default "gpt-3.5-turbo" model. */
@@ -27,18 +20,6 @@ export class GptService {
 
     this.apiKey = opts.apiKey;
     this.model = opts.model ?? 'gpt-3.5-turbo';
-  }
-
-  /**
-   * Generates a Markdown summary from condensed Lighthouse data (legacy method).
-   *
-   * @deprecated Use generateComprehensiveReportSummary for detailed analysis
-   * @param psiData A reduced Lighthouse JSON object containing only basic metrics
-   * @returns Markdown string ready to be embedded into the report.
-   */
-  async generateReportSummary(psiData: CondensedPsiData): Promise<string> {
-    const prompt = this.buildBasicPrompt(psiData);
-    return this.callOpenAI(prompt);
   }
 
   /**
@@ -103,42 +84,76 @@ export class GptService {
   private buildComprehensivePrompt(auditData: ComprehensivePsiData): string {
     const { url, strategy, performanceScore, metrics, opportunities, diagnostics } = auditData;
 
-    // Create summary of key opportunities with specific details
-    const opportunitiesSummary = opportunities
-      .slice(0, 10) // Top 10 opportunities
+    // Calculate performance severity
+    const severity =
+      performanceScore >= 90
+        ? 'excellent'
+        : performanceScore >= 70
+          ? 'good'
+          : performanceScore >= 50
+            ? 'needs improvement'
+            : 'poor';
+
+    // Prioritize opportunities by impact
+    const criticalOpportunities = opportunities
+      .filter(
+        (opp) =>
+          opp.metricSavings && Object.values(opp.metricSavings).some((saving) => saving >= 100)
+      )
+      .slice(0, 8);
+
+    const regularOpportunities = opportunities
+      .filter((opp) => !criticalOpportunities.includes(opp))
+      .slice(0, 5);
+
+    // Create detailed opportunities summary
+    const opportunitiesSummary = [...criticalOpportunities, ...regularOpportunities]
       .map((opp) => {
         const savings = opp.metricSavings
           ? Object.entries(opp.metricSavings)
               .map(([metric, value]) => `${metric}: ${value}ms`)
               .join(', ')
-          : 'See details';
+          : 'Performance impact available';
 
-        const itemsInfo =
+        const resources =
           opp.details?.items
-            ?.slice(0, 3)
+            ?.slice(0, 4)
             .map((item) => {
-              if (item.url) return `File: ${item.url}`;
-              if (item.node?.selector) return `Element: ${item.node.selector}`;
-              return 'Resource identified';
+              if (item.url) {
+                try {
+                  const urlObj = new URL(item.url);
+                  const filename = urlObj.pathname.split('/').pop() || urlObj.pathname;
+                  const sizeInfo = item.wastedBytes
+                    ? ` (${Math.round(item.wastedBytes / 1024)}KB wasted)`
+                    : '';
+                  return `${filename}${sizeInfo}`;
+                } catch {
+                  return item.url;
+                }
+              }
+              if (item.node?.selector) return `DOM: ${item.node.selector}`;
+              return 'Resource';
             })
-            .join('; ') || 'Multiple resources';
+            .join(', ') || 'Multiple resources';
 
-        return `- ${opp.title}: ${opp.displayValue || savings} (${itemsInfo})`;
+        const priority = criticalOpportunities.includes(opp) ? '[HIGH IMPACT]' : '[MEDIUM]';
+        return `${priority} ${opp.title}: ${opp.displayValue || savings} (${resources})`;
       })
       .join('\n');
 
-    // Create summary of key diagnostics
+    // Create diagnostics summary
     const diagnosticsSummary = diagnostics
-      .slice(0, 5) // Top 5 diagnostics
+      .slice(0, 6)
       .map((diag) => {
-        const itemsInfo =
+        const specifics =
           diag.details?.items
-            ?.slice(0, 2)
+            ?.slice(0, 3)
             .map((item) => {
               if (item.node?.selector) return item.node.selector;
               if (item.url) {
                 try {
-                  return new URL(item.url).pathname;
+                  const urlObj = new URL(item.url);
+                  return urlObj.pathname.split('/').pop() || urlObj.pathname;
                 } catch {
                   return item.url;
                 }
@@ -147,80 +162,80 @@ export class GptService {
             })
             .join(', ') || '';
 
-        return `- ${diag.title}${itemsInfo ? ` (${itemsInfo})` : ''}`;
+        return `- ${diag.title}${specifics ? ` (${specifics})` : ''}: ${diag.displayValue || 'Check implementation'}`;
       })
       .join('\n');
 
-    return `
-You are a senior web performance engineer analyzing a comprehensive PageSpeed Insights report. 
-Provide specific, actionable recommendations based on the actual audit findings.
+    return `You are a senior web performance consultant conducting a comprehensive PageSpeed Insights audit. Your analysis will be read by developers who need specific, actionable guidance to improve their site's performance.
 
-## Website Analysis Request
-URL: ${url} (${strategy})
-Performance Score: ${performanceScore}/100
+CONTEXT:
+- Website: ${url} (${strategy} analysis)
+- Current Performance Score: ${performanceScore}/100 (${severity} performance)
+- Primary Metrics: LCP ${metrics.lcp}ms | FCP ${metrics.fcp}ms | CLS ${metrics.cls} | TBT ${metrics.tbt}ms | SI ${metrics.si}ms
 
-## Core Web Vitals
-- LCP (Largest Contentful Paint): ${metrics.lcp}ms
-- FCP (First Contentful Paint): ${metrics.fcp}ms  
-- CLS (Cumulative Layout Shift): ${metrics.cls}
-- TBT (Total Blocking Time): ${metrics.tbt}ms
-- Speed Index: ${metrics.si}ms
+CRITICAL PERFORMANCE OPPORTUNITIES (${opportunities.length} total identified):
+${opportunitiesSummary || 'No major optimization opportunities identified'}
 
-## Key Performance Opportunities (${opportunities.length} total)
-${opportunitiesSummary || 'No major opportunities identified'}
+DIAGNOSTIC INSIGHTS (${diagnostics.length} total):
+${diagnosticsSummary || 'No significant diagnostic issues found'}
 
-## Key Diagnostics (${diagnostics.length} total)  
-${diagnosticsSummary || 'No significant diagnostics'}
+DETAILED AUDIT DATA:
+${JSON.stringify(
+  {
+    topOpportunities: opportunities.slice(0, 3),
+    keyDiagnostics: diagnostics.slice(0, 2),
+    metrics: metrics,
+  },
+  null,
+  2
+)}
 
-## Full Audit Data
-${JSON.stringify({ opportunities: opportunities.slice(0, 5), diagnostics: diagnostics.slice(0, 3) }, null, 2)}
-
-## Instructions
-Analyze this data and provide a response in the following Markdown format:
+ANALYSIS REQUIREMENTS:
+Please provide a comprehensive performance analysis following this exact structure:
 
 ### Performance Analysis for ${url} (${strategy})
 
-#### Overview
-Write a 2-3 sentence technical overview of the page's performance, highlighting the most critical issues found in the audit data.
+#### 🎯 Executive Summary
+Provide a concise 2-3 sentence assessment of the site's performance, highlighting the performance score context and the most impactful optimization potential.
 
-#### Key Issues  
-List the top 3-5 most critical performance bottlenecks with:
-- Specific metric values from the audit
-- Exact file names, URLs, or DOM selectors when available
-- Estimated performance impact
+#### ⚠️ Critical Issues
+List the top 3-4 performance bottlenecks that have the highest impact on user experience:
+- **Issue Name**: Specific metric impact (e.g., "increases LCP by 800ms")
+- **Root Cause**: Exact files, resources, or implementation patterns causing the issue
+- **Business Impact**: How this affects users (loading time, visual stability, etc.)
 
-#### Recommendations
-Provide 3-5 specific, actionable recommendations that reference:
-- Exact files, resources, or DOM elements identified in the opportunities
-- Specific optimization techniques (e.g., "lazy load images in /images/ directory")
-- Expected performance improvements (e.g., "reduce LCP by ~200ms")
+#### 🚀 Priority Recommendations
+Provide 4-6 specific, actionable recommendations ordered by implementation impact:
 
-Focus on the actual audit findings rather than generic advice. Reference specific files, selectors, and measurements from the data provided.
-`;
-  }
+1. **[HIGH IMPACT]** Recommendation title
+   - **What to do**: Specific technical steps
+   - **Files/Resources**: Exact files or elements to modify
+   - **Expected Improvement**: Quantified performance gains
+   - **Implementation Complexity**: Low/Medium/High
 
-  /**
-   * Builds the legacy basic prompt (for backward compatibility).
-   */
-  private buildBasicPrompt(data: CondensedPsiData): string {
-    return `
-    Analyze the following Lighthouse JSON data and provide a summary for a senior web developer.
-Response should be in markdown format
-The header should be named: "Performance Analysis for <url> (<strategy>)"
-Example header levels:
-\`\`\`md
-### Performance Analysis for https://tp.fazwaz.com (desktop)
-#### Overview
-#### Key Issues
-#### Recommendations
-\`\`\`
-Format the output in Markdown with four sections:
-1. **Overview**: A one-paragraph summary of the page's performance.
-3. **Key Issues**: A bulleted list of the top 3-5 most critical performance bottlenecks (e.g., LCP, TBT, CLS) with their values.
-3. **Recommendations**: A bulleted list of actionable, developer-focused suggestions for fixing the identified issues.
+2. **[MEDIUM IMPACT]** ...continue pattern
 
-Lighthouse Data:
-${JSON.stringify(data)}`;
+#### 📊 Performance Metrics Analysis
+Brief analysis of Core Web Vitals performance:
+- **LCP (${metrics.lcp}ms)**: Assessment and target
+- **FCP (${metrics.fcp}ms)**: Assessment and target  
+- **CLS (${metrics.cls})**: Assessment and target
+- **TBT (${metrics.tbt}ms)**: Assessment and target
+
+#### 🔧 Implementation Priority
+Suggest an implementation roadmap:
+1. **Quick Wins** (1-2 days): List 2-3 easy implementations
+2. **Medium Effort** (1-2 weeks): List 2-3 moderate implementations  
+3. **Long-term** (1+ months): List 1-2 complex implementations
+
+IMPORTANT GUIDELINES:
+- Reference ONLY the specific files, URLs, and DOM selectors found in the audit data
+- Quantify performance improvements using the metricSavings data provided
+- Focus on implementable solutions rather than generic advice
+- Prioritize recommendations that address Core Web Vitals directly
+- Use the exact resource names and paths from the audit data
+- Be specific about file sizes, byte savings, and timing improvements
+- Consider the interconnections between different optimizations`;
   }
 
   /**

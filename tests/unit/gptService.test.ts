@@ -42,12 +42,28 @@ describe('GptService constructor', () => {
   });
 });
 
-describe('GptService.generateReportSummary', () => {
+describe('GptService.generateComprehensiveReportSummary - Basic API Tests', () => {
   const dummyKey = 'sk-123';
-  const psiData = { score: 90 };
+  const minimalPsiData = {
+    url: 'https://example.com',
+    strategy: 'desktop' as const,
+    performanceScore: 90,
+    metrics: {
+      lcp: 1500,
+      fcp: 800,
+      cls: 0.05,
+      tbt: 50,
+      si: 1200,
+    },
+    opportunities: [],
+    diagnostics: [],
+    passedAudits: [],
+    lighthouseVersion: '10.0.0',
+    fetchTime: '2025-01-01T00:00:00.000Z',
+  };
 
   it('returns summary string when API responds 200', async () => {
-    const mockSummary = '### Overview\nGood page';
+    const mockSummary = '### Performance Analysis\nExcellent performance';
     mockFetch({ ok: true, status: 200 }, {
       choices: [
         { message: { content: mockSummary } },
@@ -55,7 +71,7 @@ describe('GptService.generateReportSummary', () => {
     });
 
     const svc = new GptService({ apiKey: dummyKey });
-    const summary = await svc.generateReportSummary(psiData);
+    const summary = await svc.generateComprehensiveReportSummary(minimalPsiData);
 
     expect(summary).toBe(mockSummary);
   });
@@ -63,19 +79,19 @@ describe('GptService.generateReportSummary', () => {
   it('throws ApiError on non-OK response', async () => {
     mockFetch({ ok: false, status: 401 }, { error: 'unauthorized' });
     const svc = new GptService({ apiKey: dummyKey });
-    await expect(svc.generateReportSummary(psiData)).rejects.toBeInstanceOf(ApiError);
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toBeInstanceOf(ApiError);
   });
 
   it('throws ApiError when response has unexpected shape', async () => {
     mockFetch({ ok: true, status: 200 }, { unexpected: 'shape' });
     const svc = new GptService({ apiKey: dummyKey });
-    await expect(svc.generateReportSummary(psiData)).rejects.toBeInstanceOf(ApiError);
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toBeInstanceOf(ApiError);
   });
 
   it('throws ApiError when choices array is empty', async () => {
     mockFetch({ ok: true, status: 200 }, { choices: [] });
     const svc = new GptService({ apiKey: dummyKey });
-    await expect(svc.generateReportSummary(psiData)).rejects.toBeInstanceOf(ApiError);
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toBeInstanceOf(ApiError);
   });
 
   it('throws ApiError when message content is not a string', async () => {
@@ -83,7 +99,7 @@ describe('GptService.generateReportSummary', () => {
       choices: [{ message: { content: 123 } }],
     });
     const svc = new GptService({ apiKey: dummyKey });
-    await expect(svc.generateReportSummary(psiData)).rejects.toBeInstanceOf(ApiError);
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toBeInstanceOf(ApiError);
   });
 
   it('handles error response text gracefully when response.text() fails', async () => {
@@ -95,14 +111,14 @@ describe('GptService.generateReportSummary', () => {
     global.fetch = vi.fn(async () => mockResponse) as unknown as typeof fetch;
 
     const svc = new GptService({ apiKey: dummyKey });
-    await expect(svc.generateReportSummary(psiData)).rejects.toBeInstanceOf(ApiError);
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toBeInstanceOf(ApiError);
   });
 
   it('throws ApiError on network error', async () => {
     global.fetch = vi.fn(() => Promise.reject(new Error('net fail'))) as unknown as typeof fetch;
 
     const svc = new GptService({ apiKey: dummyKey });
-    await expect(svc.generateReportSummary(psiData)).rejects.toBeInstanceOf(ApiError);
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toBeInstanceOf(ApiError);
   });
 });
 
@@ -221,12 +237,12 @@ describe('GptService.generateComprehensiveReportSummary', () => {
     const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
     const prompt = requestBody.messages[0].content;
 
-    expect(prompt).toContain('URL: https://example.com (desktop)');
-    expect(prompt).toContain('Performance Score: 85/100');
-    expect(prompt).toContain('LCP (Largest Contentful Paint): 2500ms');
+    expect(prompt).toContain('Website: https://example.com (desktop analysis)');
+    expect(prompt).toContain('Current Performance Score: 85/100 (good performance)');
+    expect(prompt).toContain('LCP 2500ms | FCP 1200ms | CLS 0.1 | TBT 150ms | SI 1800ms');
     expect(prompt).toContain('Remove unused CSS');
     expect(prompt).toContain('Avoid an excessive DOM size');
-    expect(prompt).toContain('File: https://example.com/styles.css');
+    expect(prompt).toContain('styles.css (1024KB wasted)');
     expect(prompt).toContain('body > div.container'); // The element selector appears in the prompt
   });
 
@@ -297,7 +313,7 @@ describe('GptService.generateComprehensiveReportSummary', () => {
     const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
     const prompt = requestBody.messages[0].content;
 
-    expect(prompt).toContain('URL Diagnostic (/long/path/to/resource.js, /script.js)');
+    expect(prompt).toContain('URL Diagnostic (resource.js, script.js): Check implementation');
   });
 
   it('limits opportunities and diagnostics in prompt', async () => {
@@ -332,15 +348,15 @@ describe('GptService.generateComprehensiveReportSummary', () => {
     const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
     const prompt = requestBody.messages[0].content;
 
-    // Should include first 10 opportunities
+    // Should include opportunities (limited by the implementation logic)
     expect(prompt).toContain('Opportunity 0');
-    expect(prompt).toContain('Opportunity 9');
+    expect(prompt).toContain('Opportunity 4'); // Implementation limits to first 5 regular opportunities
     expect(prompt).not.toContain('Opportunity 10');
 
-    // Should include first 5 diagnostics
+    // Should include first 6 diagnostics (implementation limit)
     expect(prompt).toContain('Diagnostic 0');
-    expect(prompt).toContain('Diagnostic 4');
-    expect(prompt).not.toContain('Diagnostic 5');
+    expect(prompt).toContain('Diagnostic 5'); // Implementation limits to first 6 diagnostics
+    expect(prompt).not.toContain('Diagnostic 6');
   });
 
   it('handles empty opportunities and diagnostics gracefully', async () => {
@@ -362,8 +378,8 @@ describe('GptService.generateComprehensiveReportSummary', () => {
     const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
     const prompt = requestBody.messages[0].content;
 
-    expect(prompt).toContain('No major opportunities identified');
-    expect(prompt).toContain('No significant diagnostics');
+    expect(prompt).toContain('No major optimization opportunities identified');
+    expect(prompt).toContain('No significant diagnostic issues found');
   });
 
   it('handles invalid URLs in diagnostic items gracefully', async () => {
@@ -403,7 +419,7 @@ describe('GptService.generateComprehensiveReportSummary', () => {
     const prompt = requestBody.messages[0].content;
 
     // Should handle invalid URL gracefully and fall back to original string
-    expect(prompt).toContain('invalid-url-format, /valid.js');
+    expect(prompt).toContain('invalid-url-format, valid.js');
   });
 
   it('calls safeReadText when response.text() is available', async () => {
@@ -418,7 +434,7 @@ describe('GptService.generateComprehensiveReportSummary', () => {
     const svc = new GptService({ apiKey: dummyKey });
     
     try {
-      await svc.generateReportSummary({ score: 90 });
+      await svc.generateComprehensiveReportSummary(comprehensiveData);
     } catch (error) {
       // Expected to throw ApiError
       expect(error).toBeInstanceOf(ApiError);
