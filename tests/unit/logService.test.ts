@@ -1,58 +1,110 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'fs';
 import path from 'path';
-import { savePsiRaw } from '../../src/services/logService.js';
 
-// Use var declarations to avoid TDZ with hoisted vi.mock factories
-var mockExists: boolean;
-var writeFileSpy: ReturnType<typeof vi.fn>;
-var mkdirSpy: ReturnType<typeof vi.fn>;
+import {
+  getReportFilename,
+  saveRawReport,
+  readRawReport,
+} from '../../src/services/logService.js';
 
-vi.mock('fs', () => {
-  mockExists = false;
-  writeFileSpy = vi.fn();
-  mkdirSpy = vi.fn();
-  return {
-    default: {
-      existsSync: () => mockExists,
-      mkdirSync: (...args: unknown[]) => mkdirSpy(...args),
-      writeFileSync: (...args: unknown[]) => writeFileSpy(...args),
-    },
-  };
-});
+vi.mock('fs');
 
-beforeEach(() => {
-  mkdirSpy.mockClear();
-  writeFileSpy.mockClear();
-  vi.spyOn(console, 'error').mockImplementation(() => {});
-});
+const mockedFs = vi.mocked(fs);
 
-describe('services/logService.savePsiRaw', () => {
-  it('creates logs directory when missing and writes file', () => {
-    mockExists = false;
-    savePsiRaw({ foo: 'bar' });
+describe('logService', () => {
+  const mockData = { id: 'test' } as any;
+  const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    expect(mkdirSpy).toHaveBeenCalled();
-    expect(writeFileSpy).toHaveBeenCalled();
-    const filePath = writeFileSpy.mock.calls[0][0] as string;
-    expect(filePath).toContain(path.join('logs'));
+  afterEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('does not create directory if it already exists', () => {
-    mockExists = true;
-    savePsiRaw({ foo: 'bar' });
-
-    expect(mkdirSpy).not.toHaveBeenCalled();
-    expect(writeFileSpy).toHaveBeenCalled();
-  });
-
-  it('handles fs write errors gracefully', () => {
-    mockExists = true;
-    writeFileSpy.mockImplementation(() => {
-      throw new Error('disk full');
+  describe('getReportFilename', () => {
+    it('should generate a valid filename for a simple URL', () => {
+      const url = 'https://example.com';
+      const strategy = 'desktop';
+      const expected = 'psi-raw-desktop-example.com.json';
+      expect(getReportFilename(url, strategy)).toBe(expected);
     });
 
-    expect(() => savePsiRaw({})).not.toThrow();
-    expect(console.error).toBeDefined();
+    it('should handle URLs with paths and trailing slashes', () => {
+      const url = 'https://example.com/path/to/page/';
+      const strategy = 'mobile';
+      const expected = 'psi-raw-mobile-example.com_path_to_page.json';
+      expect(getReportFilename(url, strategy)).toBe(expected);
+    });
+
+    it('should handle URLs with query parameters', () => {
+      const url = 'https://example.com/page?foo=bar&baz=qux';
+      const strategy = 'desktop';
+      const expected = 'psi-raw-desktop-example.com_page_foo=bar&baz=qux.json';
+      expect(getReportFilename(url, strategy)).toBe(expected);
+    });
+  });
+
+  describe('saveRawReport', () => {
+    it('should write a file with the given data', () => {
+      const filename = 'test.json';
+      saveRawReport(filename, mockData);
+      expect(mockedFs.writeFileSync).toHaveBeenCalledWith(
+        path.join(process.cwd(), 'logs', filename),
+        JSON.stringify(mockData, null, 2)
+      );
+    });
+
+    it('should log an error if writing fails', () => {
+      const filename = 'test.json';
+      mockedFs.writeFileSync.mockImplementation(() => {
+        throw new Error('Disk full');
+      });
+      saveRawReport(filename, mockData);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('readRawReport', () => {
+    it('should read and parse a file if it exists', () => {
+      const filename = 'test.json';
+      const fileContent = JSON.stringify(mockData);
+      mockedFs.existsSync.mockReturnValue(true);
+      mockedFs.readFileSync.mockReturnValue(fileContent);
+
+      const result = readRawReport(filename);
+
+      expect(mockedFs.readFileSync).toHaveBeenCalledWith(
+        path.join(process.cwd(), 'logs', filename),
+        'utf-8'
+      );
+      expect(result).toEqual(mockData);
+    });
+
+    it('should return null if the file does not exist', () => {
+      const filename = 'non-existent.json';
+      mockedFs.existsSync.mockReturnValue(false);
+      const result = readRawReport(filename);
+      expect(result).toBeNull();
+      expect(mockedFs.readFileSync).not.toHaveBeenCalled();
+    });
+
+    it('should log an error and return null if reading fails', () => {
+      const filename = 'test.json';
+      mockedFs.existsSync.mockReturnValue(true);
+      mockedFs.readFileSync.mockImplementation(() => {
+        throw new Error('Read error');
+      });
+      const result = readRawReport(filename);
+      expect(result).toBeNull();
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+
+    it('should log an error and return null if parsing fails', () => {
+      const filename = 'test.json';
+      mockedFs.existsSync.mockReturnValue(true);
+      mockedFs.readFileSync.mockReturnValue('invalid json');
+      const result = readRawReport(filename);
+      expect(result).toBeNull();
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
   });
 }); 

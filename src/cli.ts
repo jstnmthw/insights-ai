@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   const outDir = 'logs';
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir);
   fs.writeFileSync(`${outDir}/psi-report-${timestamp}.md`, mdContent);
-  console.log(chalk.green(`\n📄 Report saved to: ${outDir}/psi-report-${timestamp}.md`));
+  console.log(chalk.white(`\nReport saved to: ${outDir}/psi-report-${timestamp}.md`));
 }
 
 // ---------------------------------------------------------
@@ -99,7 +99,8 @@ function printHeader(cfg: ReturnType<typeof loadConfig>): {
   const runDate = now.toLocaleString();
 
   console.clear();
-  const header = gradient(['#4A90E2', '#8E44AD', '#E91E63'])('InsightsAI') + ' - Running Analysis';
+  const header =
+    gradient(['#4A90E2', '#8E44AD', '#E91E63'])('InsightsAI') + ' - Running Analysis\n';
   const subheader = `Testing ${chalk.green(cfg.urls.length)} URL(s) × ${chalk.green(
     cfg.strategies.length
   )} strategies × ${chalk.green(cfg.runsPerUrl)} run(s)`;
@@ -108,7 +109,7 @@ function printHeader(cfg: ReturnType<typeof loadConfig>): {
 
   // AI summary status information
   const aiStatusColored = cfg.ai.enabled ? chalk.green('Enabled') : chalk.gray('Disabled');
-  const aiInfo = `AI Summaried: ${aiStatusColored}`;
+  const aiInfo = `AI Summaries: ${aiStatusColored}`;
 
   console.log(`${header}\n${subheader}\n${runInfo}\n${aiInfo}\n`);
 
@@ -153,7 +154,7 @@ async function generateAiSummary(
 ): Promise<string> {
   if (!cfg.ai.enabled || !cfg.ai.apiKey) return mdContent;
 
-  console.log(chalk.cyan('Generating AI summaries...'));
+  console.log('\n' + gradient(['#4A90E2', '#8E44AD', '#E91E63'])('Generating AI summaries'));
 
   const gpt = new GptService({ apiKey: cfg.ai.apiKey, model: cfg.ai.model });
   const summaries: string[] = [];
@@ -180,7 +181,8 @@ async function generateAiSummary(
 
       // Ensure consistent headers and per-recommendation Cursor links
       const lines = summary.split('\n');
-      const processed: string[] = [`# Performance Analysis for ${r.url} (${r.strategy})`];
+      const processed: string[] = [];
+      let currentSection = ''; // To track if we are in 'issues' or 'recommendations'
 
       // Normalize subsequent headers and attach links to bullets
       lines.forEach((line) => {
@@ -189,15 +191,34 @@ async function generateAiSummary(
         // Skip filler phrases or horizontal rules returned by the model
         if (trimmed === '' || /^---+$/.test(trimmed) || /^certainly/i.test(trimmed)) return;
 
-        if (/^#+\s*overview/i.test(trimmed)) processed.push('### Overview');
-        else if (/^#+\s*key\s*issues/i.test(trimmed)) processed.push('### Key Issues');
-        else if (/^#+\s*recommendations?/i.test(trimmed)) processed.push('### Recommendations');
-        else if (trimmed.startsWith('- ')) {
-          const recText = trimmed.replace(/^-\s+/, '');
-          const linkPrompt = encodeURIComponent(
-            `I have this Lighthouse recommendation: ${recText}. How do I implement it?`
-          );
-          processed.push(`${trimmed} [Fix in Cursor](https://www.cursor.sh/?prompt=${linkPrompt})`);
+        if (/^#+\s*overview/i.test(trimmed)) {
+          processed.push('### Overview');
+          currentSection = 'overview';
+        } else if (/^#+\s*key\s*issues/i.test(trimmed)) {
+          processed.push('### Key Issues');
+          currentSection = 'issues';
+        } else if (/^#+\s*recommendations?/i.test(trimmed)) {
+          processed.push('### Recommendations');
+          currentSection = 'recommendations';
+        } else if (trimmed.startsWith('- ')) {
+          if (currentSection === 'recommendations') {
+            const recText = trimmed.replace(/^-\s+/, '');
+            const promptContext = `URL: ${r.url} (${r.strategy}) | Score: ${
+              r.medianScore
+            } | LCP: ${r.medianLcp.toFixed(0)}ms | CLS: ${r.medianCls.toFixed(
+              3
+            )} | TBT: ${r.medianTbt.toFixed(0)}ms`;
+            const linkPrompt = encodeURIComponent(
+              `My site has a performance issue.\n\nRecommendation: "${recText}"\n\nContext: ${promptContext}\n\nPlease provide a step-by-step guide to fix this.`
+            );
+            processed.push(
+              `${trimmed} [Fix in Cursor](https://www.cursor.sh/?prompt=${linkPrompt})`
+            );
+          } else {
+            // For 'Key Issues' or other sections, don't add the link.
+            // Using `line` preserves original indentation.
+            processed.push(line);
+          }
         } else if (trimmed !== '') {
           processed.push(line);
         }

@@ -79,11 +79,20 @@ export class GptService {
   }
 
   private buildPrompt(data: CondensedPsiData): string {
-    return `Analyze the following Lighthouse JSON data and provide a summary for a web developer.
-
-Format the output in Markdown with three sections:
+    return `
+    Analyze the following Lighthouse JSON data and provide a summary for a senior web developer.
+Response should be in markdown format
+The header should be named: "Performance Analysis for <url> (<strategy>)"
+Example header levels:
+\`\`\`md
+### Performance Analysis for https://tp.fazwaz.com (desktop)
+#### Overview
+#### Key Issues
+#### Recommendations
+\`\`\`
+Format the output in Markdown with four sections:
 1. **Overview**: A one-paragraph summary of the page's performance.
-2. **Key Issues**: A bulleted list of the top 3-5 most critical performance bottlenecks (e.g., LCP, TBT, CLS) with their values.
+3. **Key Issues**: A bulleted list of the top 3-5 most critical performance bottlenecks (e.g., LCP, TBT, CLS) with their values.
 3. **Recommendations**: A bulleted list of actionable, developer-focused suggestions for fixing the identified issues.
 
 Lighthouse Data:

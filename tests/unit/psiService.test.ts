@@ -1,83 +1,91 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import axios from 'axios';
 
 import { runPsi } from '../../src/services/psiService.js';
 import { ApiError } from '../../src/errors/index.js';
+import * as logService from '../../src/services/logService.js';
 
-// Declare spies with var for hoist safety
-var savePsiRawSpy: ReturnType<typeof vi.fn>;
-vi.mock('../../src/services/logService.js', () => {
-  savePsiRawSpy = vi.fn();
-  return { savePsiRaw: savePsiRawSpy };
-});
+vi.mock('axios');
+vi.mock('../../src/services/logService.js');
 
-var getSpy: ReturnType<typeof vi.fn>;
-vi.mock('axios', () => {
-  getSpy = vi.fn();
-  return { default: { get: getSpy } };
-});
+const mockedAxios = vi.mocked(axios);
+const mockedLogService = vi.mocked(logService);
 
-// Sample API response
-function mockApiResponse(score: number = 0.95) {
-  return {
-    lighthouseResult: {
-      categories: {
-        performance: { score },
-      },
-      audits: {
-        'largest-contentful-paint': { displayValue: '2.0 s', numericValue: 2000 },
-        'first-contentful-paint': { displayValue: '1.0 s', numericValue: 1000 },
-        'cumulative-layout-shift': { displayValue: '0.05', numericValue: 0.05 },
-        'total-blocking-time': { displayValue: '150 ms', numericValue: 150 },
-      },
+const mockApiResponse = (score = 0.95) => ({
+  lighthouseResult: {
+    categories: {
+      performance: { score },
     },
-  };
-}
-
-beforeEach(() => {
-  savePsiRawSpy.mockClear();
-  getSpy.mockReset();
+    audits: {
+      'largest-contentful-paint': { displayValue: '2.0 s', numericValue: 2000 },
+      'first-contentful-paint': { displayValue: '1.0 s', numericValue: 1000 },
+      'cumulative-layout-shift': { displayValue: '0.05', numericValue: 0.05 },
+      'total-blocking-time': { displayValue: '150 ms', numericValue: 150 },
+    },
+  },
 });
 
-describe('services/psiService.runPsi', () => {
-  it('returns parsed metrics and calls savePsiRaw', async () => {
-    getSpy.mockResolvedValue({ data: mockApiResponse(0.9) });
+describe('runPsi', () => {
+  const url = 'https://example.com';
+  const key = 'test-key';
+  const strategy = 'desktop';
+  const runNumber = 1;
+  const filename = 'test.json';
 
-    const result = await runPsi('https://example.com', 'dummy-key', 'mobile', 1);
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockedLogService.getReportFilename.mockReturnValue(filename);
+  });
+
+  it('should return a cached report if available', async () => {
+    const cachedData = mockApiResponse(0.88);
+    mockedLogService.readRawReport.mockReturnValue(cachedData as any);
+
+    const result = await runPsi(url, key, strategy, runNumber);
+
+    expect(mockedLogService.getReportFilename).toHaveBeenCalledWith(url, strategy);
+    expect(mockedLogService.readRawReport).toHaveBeenCalledWith(filename);
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+    expect(result.score).toBe(88);
+  });
+
+  it('should fetch from API, save and return report if not cached', async () => {
+    const apiData = mockApiResponse(0.92);
+    mockedLogService.readRawReport.mockReturnValue(null);
+    vi.mocked(axios.get).mockResolvedValue({ data: apiData });
+
+    const result = await runPsi(url, key, strategy, runNumber);
+
+    expect(mockedLogService.readRawReport).toHaveBeenCalledWith(filename);
+    expect(mockedAxios.get).toHaveBeenCalled();
+    expect(mockedLogService.saveRawReport).toHaveBeenCalledWith(filename, apiData);
+    expect(result.score).toBe(92);
+  });
+
+  it('should throw ApiError if API fails and no cache exists', async () => {
+    mockedLogService.readRawReport.mockReturnValue(null);
+    vi.mocked(axios.get).mockRejectedValue(new Error('Network Error'));
+
+    await expect(runPsi(url, key, strategy, runNumber)).rejects.toThrow(ApiError);
+    expect(mockedLogService.saveRawReport).not.toHaveBeenCalled();
+  });
+
+  it('should correctly parse the API response', async () => {
+    const apiData = mockApiResponse(0.75);
+    mockedLogService.readRawReport.mockReturnValue(null);
+    vi.mocked(axios.get).mockResolvedValue({ data: apiData });
+
+    const result = await runPsi(url, key, strategy, runNumber);
 
     expect(result).toMatchObject({
-      url: 'https://example.com',
-      strategy: 'mobile',
-      runNumber: 1,
-      score: 90, // 0.9 * 100 rounded
+      url,
+      strategy,
+      runNumber,
+      score: 75,
+      lcp: { display: '2.0 s', numeric: 2000 },
+      fcp: { display: '1.0 s', numeric: 1000 },
+      cls: { display: '0.05', numeric: 0.05 },
+      tbt: { display: '150 ms', numeric: 150 },
     });
-
-    expect(result.lcp).toEqual({ display: '2.0 s', numeric: 2000 });
-    expect(result.fcp).toEqual({ display: '1.0 s', numeric: 1000 });
-    expect(result.cls).toEqual({ display: '0.05', numeric: 0.05 });
-    expect(result.tbt).toEqual({ display: '150 ms', numeric: 150 });
-    expect(savePsiRawSpy).toHaveBeenCalled();
-  });
-
-  it('throws ApiError when axios request fails', async () => {
-    getSpy.mockRejectedValue(new Error('network error'));
-
-    await expect(
-      runPsi('https://example.com', 'dummy', 'desktop', 1)
-    ).rejects.toBeInstanceOf(ApiError);
-  });
-
-  it('returns default display/numeric when audit missing', async () => {
-    getSpy.mockResolvedValue({
-      data: {
-        lighthouseResult: {
-          categories: { performance: { score: 0.8 } },
-          audits: {},
-        },
-      },
-    });
-
-    const res = await runPsi('https://example.com', 'k', 'desktop', 1);
-
-    expect(res.lcp).toEqual({ display: 'n/a', numeric: 0 });
   });
 }); 

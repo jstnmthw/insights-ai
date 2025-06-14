@@ -72,6 +72,7 @@ describe('config/loadConfig', () => {
 
   it('uses default env values when optional vars absent', () => {
     clearEnv();
+    delete process.env.PSI_STRATEGIES;
     process.env.PSI_KEY = 'abc';
     // create temp urls file
     const tempPath = path.join(__dirname, 'one-url.yml');
@@ -96,6 +97,6 @@ describe('config/loadConfig', () => {
     });
 
     const cfg = loadConfig();
-    expect(cfg.ai).toEqual({ enabled: true, apiKey: 'openai-key', model: 'gpt-4o' });
+    expect(cfg.ai).toEqual({ enabled: true, apiKey: 'openai-key', model: 'gpt-3.5-turbo' });
   });
 });

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ApiError } from '../errors/index.js';
 import { Metric, RunResult, LighthouseAudits, PsiApiResponse } from '../types/psi.js';
 
-import { savePsiRaw } from './logService.js';
+import { getReportFilename, readRawReport, saveRawReport } from './logService.js';
 
 function extractMetric(audits: LighthouseAudits, id: string): Metric {
   return {
@@ -19,19 +19,26 @@ export async function runPsi(
   runNumber: number
 ): Promise<RunResult> {
   let data: PsiApiResponse;
-  try {
-    const resp = await axios.get<PsiApiResponse>(
-      'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
-      {
-        params: { url, strategy, key: apiKey },
-      }
-    );
-    data = resp.data;
 
-    // Delegate raw-response persistence to dedicated service
-    savePsiRaw(data);
-  } catch (err) {
-    throw new ApiError('Failed to fetch PageSpeed Insights data', err);
+  const filename = getReportFilename(url, strategy);
+  const cachedReport = readRawReport(filename);
+
+  if (cachedReport) {
+    data = cachedReport;
+  } else {
+    try {
+      const resp = await axios.get<PsiApiResponse>(
+        'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
+        {
+          params: { url, strategy, key: apiKey },
+        }
+      );
+      data = resp.data;
+
+      saveRawReport(filename, data);
+    } catch (err) {
+      throw new ApiError('Failed to fetch PageSpeed Insights data', err);
+    }
   }
 
   const lh = data.lighthouseResult;
