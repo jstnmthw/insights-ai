@@ -3,17 +3,14 @@ import { URL } from 'node:url';
 import { AppConfig } from '../config/index.js';
 import type { MedianResult, PsiAudit, PsiAuditItem } from '../types/psi.js';
 
-import { getScoreEmoji, getLcpEmoji, getFcpEmoji, getClsEmoji, getTbtEmoji } from './metrics.js';
-
-/**
- * Format a metric numeric value for human readability.
- * Mirrors logic used in CLI display.
- */
-export function formatMetric(value: number, unit: 'ms' | 's' = 'ms'): string {
-  if (value === 0) return 'n/a';
-  if (unit === 'ms') return `${Math.round(value)} ms`;
-  return `${(value / 1000).toFixed(1)} s`;
-}
+import {
+  getScoreEmoji,
+  getLcpEmoji,
+  getFcpEmoji,
+  getClsEmoji,
+  getTbtEmoji,
+  formatHumanTime,
+} from './metrics.js';
 
 /**
  * Format bytes for human readability.
@@ -48,11 +45,11 @@ export function buildMarkdownReport(
   mdContent += '| :-- | :------: | :--: | ----: | --: | --: | --: | --: |\n';
   medianResults.forEach((r) => {
     mdContent +=
-      `| ${r.url} | ${r.strategy} | ${r.runs} | ${getScoreEmoji(r.medianScore)} ${r.medianScore} | ` +
-      `${getLcpEmoji(r.medianLcp)} ${formatMetric(r.medianLcp)} | ` +
-      `${getFcpEmoji(r.medianFcp)} ${formatMetric(r.medianFcp)} | ` +
-      `${getClsEmoji(r.medianCls)} ${r.medianCls.toFixed(3)} | ` +
-      `${getTbtEmoji(r.medianTbt)} ${formatMetric(r.medianTbt)} |\n`;
+      `| ${r.url} | ${r.strategy} | ${r.runs} | ${getScoreEmoji(r.medianScore)} <sub>${r.medianScore}</sub> | ` +
+      `${getLcpEmoji(r.medianLcp)} <sub>${formatHumanTime(r.medianLcp)}</sub> | ` +
+      `${getFcpEmoji(r.medianFcp)} <sub>${formatHumanTime(r.medianFcp)}</sub> | ` +
+      `${getClsEmoji(r.medianCls)} <sub>${r.medianCls.toFixed(3)}</sub> | ` +
+      `${getTbtEmoji(r.medianTbt)} <sub>${formatHumanTime(r.medianTbt)}</sub> |\n`;
   });
 
   return mdContent;

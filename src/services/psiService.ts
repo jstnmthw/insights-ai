@@ -15,7 +15,18 @@ function extractMetric(audits: LighthouseAudits, id: string): Metric {
 
 // Check if we're in development mode
 function isDevelopmentMode(): boolean {
-  return process.argv.some((arg) => arg.includes('tsx') || arg.includes('ts-node'));
+  // Check for common development indicators
+  const hasDevIndicators = process.argv.some(
+    (arg) => arg.includes('tsx') || arg.includes('ts-node') || arg.includes('src/cli.ts')
+  );
+
+  // Also check NODE_ENV
+  const isNodeEnvDev = process.env.NODE_ENV === 'development';
+
+  // Check if we're running from src/ directory (development) vs dist/ (production)
+  const isRunningFromSrc = process.argv.some((arg) => arg.includes('src/'));
+
+  return hasDevIndicators || isNodeEnvDev || isRunningFromSrc;
 }
 
 export async function runPsi(
@@ -46,7 +57,9 @@ export async function runPsi(
         );
         data = resp.data;
 
+        console.log(`[DEV] Saving raw report to: ${filename}`);
         saveRawReport(filename, data);
+        console.log(`[DEV] Raw report saved successfully`);
       } catch (err) {
         throw new ApiError('Failed to fetch PageSpeed Insights data', err);
       }

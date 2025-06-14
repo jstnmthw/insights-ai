@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { buildMarkdownReport, appendAiSummary, formatMetric, formatBytes, buildComprehensiveMarkdownReport } from '../../src/utils/reportBuilder.js';
+import { buildMarkdownReport, appendAiSummary, formatBytes, buildComprehensiveMarkdownReport } from '../../src/utils/reportBuilder.js';
 import { AppConfig } from '../../src/config/index.js';
 import { MedianResult, ComprehensivePsiData } from '../../src/types/psi.js';
 
@@ -130,12 +130,12 @@ Started at TEST_DATE
 
 | URL | Strategy | Runs | Score | LCP | FCP | CLS | TBT |
 | :-- | :------: | :--: | ----: | --: | --: | --: | --: |
-| https://example.com | desktop | 1 | 🟢 90 | 🟢 2000 ms | 🟢 1000 ms | 🟢 0.050 | 🟢 100 ms |
+| https://example.com | desktop | 1 | 🟢 <sub>90</sub> | 🟢 <sub>2s</sub> | 🟢 <sub>1s</sub> | 🟢 <sub>0.050</sub> | 🟢 <sub>100ms</sub> |
 "
     `);
   });
 
-  it('handles zero values correctly in formatMetric', () => {
+  it('handles zero values correctly', () => {
     const zeroResults: MedianResult[] = [
       {
         url: 'https://example.com',
@@ -155,33 +155,14 @@ Started at TEST_DATE
 
     // Check that zero values are formatted as 'n/a' for LCP, FCP, and TBT metrics
     // CLS is handled differently with toFixed(3) so it shows as 0.000
-    expect(md).toContain('n/a');
-    expect(md).toContain('0.000');
+    expect(md).toContain('<sub>n/a</sub>');
+    expect(md).toContain('<sub>0.000</sub>');
     
     // Specifically test that LCP, FCP, and TBT show 'n/a' when zero
     const lines = md.split('\n');
     const dataLine = lines.find(line => line.includes('https://example.com'));
     expect(dataLine).toBeDefined();
-    expect(dataLine).toMatch(/n\/a.*n\/a.*0\.000.*n\/a/); // LCP n/a, FCP n/a, CLS 0.000, TBT n/a
-  });
-});
-
-describe('utils/reportBuilder.formatMetric', () => {
-  it('returns "n/a" for zero values', () => {
-    expect(formatMetric(0)).toBe('n/a');
-    expect(formatMetric(0, 'ms')).toBe('n/a');
-    expect(formatMetric(0, 's')).toBe('n/a');
-  });
-
-  it('formats milliseconds correctly', () => {
-    expect(formatMetric(1500)).toBe('1500 ms');
-    expect(formatMetric(1500, 'ms')).toBe('1500 ms');
-    expect(formatMetric(2345.67)).toBe('2346 ms'); // rounds
-  });
-
-  it('formats seconds correctly', () => {
-    expect(formatMetric(1500, 's')).toBe('1.5 s');
-    expect(formatMetric(2345, 's')).toBe('2.3 s');
+    expect(dataLine).toMatch(/<sub>n\/a<\/sub>.*<sub>n\/a<\/sub>.*<sub>0\.000<\/sub>.*<sub>n\/a<\/sub>/); // LCP n/a, FCP n/a, CLS 0.000, TBT n/a
   });
 });
 

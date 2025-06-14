@@ -19,6 +19,7 @@ import {
   getClsColor,
   getTbtColor,
   colorize,
+  formatHumanTime,
 } from './utils/metrics.js';
 import {
   buildComprehensiveMarkdownReport,
@@ -102,28 +103,28 @@ function printHeader(cfg: ReturnType<typeof loadConfig>): {
 } {
   const now = new Date();
   const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
-  const runDate = now.toLocaleString();
+  const runDate = now.toLocaleTimeString();
 
   console.clear();
   const header =
     gradient(['#4A90E2', '#8E44AD', '#E91E63'])('InsightsAI') + ' - Running Analysis\n';
   const subheader = `Testing ${chalk.green(cfg.urls.length)} URL(s) × ${chalk.green(
     cfg.strategies.length
-  )} strategies × ${chalk.green(cfg.runsPerUrl)} run(s)`;
+  )} strategies × ${chalk.green(cfg.runsPerUrl)} run(s)\n`;
   const subheaderPlain = `Testing ${cfg.urls.length} URL(s) × ${cfg.strategies.length} strategies × ${cfg.runsPerUrl} run(s)`;
-  const runInfo = `Started at ${runDate}`;
+  const runInfo = `Started at:................. ${runDate}`;
 
   // AI summary status information
   const aiStatusColored = cfg.ai.enabled ? chalk.green('Enabled') : chalk.gray('Disabled');
-  const aiInfo = `AI Summaries: ${aiStatusColored}`;
+  const aiInfo = `AI Summaries:............... ${aiStatusColored}`;
 
   // Detailed report status information
   const detailedStatusColored = cfg.detailedReport
     ? chalk.green('Enabled')
     : chalk.gray('Disabled');
-  const detailedInfo = `Detailed Reports: ${detailedStatusColored}`;
+  const detailedInfo = `Detailed Reports:........... ${detailedStatusColored}`;
 
-  console.log(`${header}\n${subheader}\n${runInfo}\n${aiInfo}\n${detailedInfo}\n`);
+  console.log(`${header}\n${subheader}\n${runInfo}\n${detailedInfo}\n${aiInfo}\n`);
 
   return { timestamp, subheaderPlain, runInfo };
 }
@@ -137,22 +138,16 @@ function renderResultsTable(results: MedianResult[]): void {
     colAligns: ['left', 'center', 'center', 'right', 'right', 'right', 'right', 'right'],
   });
 
-  const formatMetric = (value: number, unit: 'ms' | 's' = 'ms'): string => {
-    if (value === 0) return 'n/a';
-    if (unit === 'ms') return `${Math.round(value)} ms`;
-    return `${(value / 1000).toFixed(1)} s`;
-  };
-
   results.forEach((r) => {
     table.push([
       r.url,
       r.strategy,
       r.runs,
       colorize(r.medianScore, getScoreColor(r.medianScore)),
-      colorize(formatMetric(r.medianLcp), getLcpColor(r.medianLcp)),
-      colorize(formatMetric(r.medianFcp), getFcpColor(r.medianFcp)),
+      colorize(formatHumanTime(r.medianLcp), getLcpColor(r.medianLcp)),
+      colorize(formatHumanTime(r.medianFcp), getFcpColor(r.medianFcp)),
       colorize(r.medianCls.toFixed(3), getClsColor(r.medianCls)),
-      colorize(formatMetric(r.medianTbt), getTbtColor(r.medianTbt)),
+      colorize(formatHumanTime(r.medianTbt), getTbtColor(r.medianTbt)),
     ]);
   });
 
@@ -166,7 +161,7 @@ async function generateAiSummary(
 ): Promise<string> {
   if (!cfg.ai.enabled || !cfg.ai.apiKey) return mdContent;
 
-  console.log('\n' + gradient(['#4A90E2', '#8E44AD', '#E91E63'])('Generating AI summaries'));
+  console.log('\n' + gradient(['#4A90E2', '#8E44AD', '#E91E63'])('Generating AI summaries ✨'));
 
   const gpt = new GptService({ apiKey: cfg.ai.apiKey, model: cfg.ai.model });
   const summaries: string[] = [];
@@ -211,12 +206,8 @@ async function generateAiSummary(
             } | LCP: ${r.medianLcp.toFixed(0)}ms | CLS: ${r.medianCls.toFixed(
               3
             )} | TBT: ${r.medianTbt.toFixed(0)}ms`;
-            const linkPrompt = encodeURIComponent(
-              `My site has a performance issue.\n\nRecommendation: "${recText}"\n\nContext: ${promptContext}\n\nPlease provide a step-by-step guide to fix this.`
-            );
-            processed.push(
-              `${trimmed} [Fix in Cursor](https://www.cursor.sh/?prompt=${linkPrompt})`
-            );
+            const prompt = `My site has a performance issue.\n\nRecommendation: "${recText}"\n\nContext: ${promptContext}\n\nPlease provide a step-by-step guide to fix this.`;
+            processed.push(`${trimmed} - \`\`\`\n${prompt}\n\`\`\``);
           } else {
             // For 'Key Issues' or other sections, don't add the link.
             // Using `line` preserves original indentation.

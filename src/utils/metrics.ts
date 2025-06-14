@@ -40,6 +40,42 @@ export function getTbtEmoji(tbt: number): string {
   return tbt <= 200 ? '🟢' : tbt <= 600 ? '🟡' : '🔴';
 }
 
+/**
+ * Format time values in a human-friendly way.
+ * Converts milliseconds to appropriate units (ms, s, min) based on magnitude.
+ */
+export function formatHumanTime(ms: number): string {
+  if (ms === 0) return 'n/a';
+
+  // Round to avoid floating point precision issues
+  const rounded = Math.round(ms);
+
+  // Less than 1 second: show in ms
+  if (rounded < 1000) {
+    return `${rounded}ms`;
+  }
+
+  // Less than 1 minute: show in seconds with 1 decimal place if needed
+  if (rounded < 60000) {
+    const seconds = rounded / 1000;
+    const wholeSeconds = Math.round(seconds);
+    // If it rounds to a whole number, show as whole number
+    if (Math.abs(seconds - wholeSeconds) < 0.05) {
+      return `${wholeSeconds}s`;
+    }
+    return `${seconds.toFixed(1)}s`;
+  }
+
+  // 1 minute or more: show in minutes with 1 decimal place if needed
+  const minutes = rounded / 60000;
+  const wholeMinutes = Math.round(minutes);
+  // If it rounds to a whole number, show as whole number
+  if (Math.abs(minutes - wholeMinutes) < 0.05) {
+    return `${wholeMinutes}min`;
+  }
+  return `${minutes.toFixed(1)}min`;
+}
+
 export function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);

@@ -12,6 +12,7 @@ import {
   getClsEmoji,
   getTbtEmoji,
   colorize,
+  formatHumanTime,
 } from '../../src/utils/metrics.js';
 
 // Mock chalk so we can assert colorize output deterministically
@@ -82,6 +83,49 @@ describe('utils/metrics', () => {
     it('delegates to chalk with correct color', () => {
       expect(colorize('value', 'green')).toBe('green(value)');
       expect(colorize(123, 'yellow')).toBe('yellow(123)');
+    });
+  });
+
+  describe('formatHumanTime', () => {
+    it('handles zero values', () => {
+      expect(formatHumanTime(0)).toBe('n/a');
+    });
+
+    it('formats milliseconds under 1 second', () => {
+      expect(formatHumanTime(100)).toBe('100ms');
+      expect(formatHumanTime(500)).toBe('500ms');
+      expect(formatHumanTime(999)).toBe('999ms');
+      expect(formatHumanTime(999.7)).toBe('1s'); // rounds up to 1000ms, converts to 1s
+    });
+
+    it('formats seconds (1s to under 1min)', () => {
+      expect(formatHumanTime(1000)).toBe('1s');
+      expect(formatHumanTime(1500)).toBe('1.5s');
+      expect(formatHumanTime(2000)).toBe('2s');
+      expect(formatHumanTime(2300)).toBe('2.3s');
+      expect(formatHumanTime(59000)).toBe('59s');
+      expect(formatHumanTime(59999)).toBe('60s'); // rounds to 60s
+    });
+
+    it('formats minutes (1min and above)', () => {
+      expect(formatHumanTime(60000)).toBe('1min');
+      expect(formatHumanTime(90000)).toBe('1.5min');
+      expect(formatHumanTime(120000)).toBe('2min');
+      expect(formatHumanTime(130000)).toBe('2.2min');
+      expect(formatHumanTime(600000)).toBe('10min');
+    });
+
+    it('handles edge cases and rounding', () => {
+      // Test floating point precision - should round to whole seconds
+      expect(formatHumanTime(1000.4)).toBe('1s');
+      expect(formatHumanTime(1000.6)).toBe('1s');
+      expect(formatHumanTime(1499.4)).toBe('1.5s');
+      expect(formatHumanTime(1500.6)).toBe('1.5s');
+      
+      // Test minute rounding
+      expect(formatHumanTime(60000.4)).toBe('1min');
+      expect(formatHumanTime(89999)).toBe('1.5min');
+      expect(formatHumanTime(90001)).toBe('1.5min');
     });
   });
 }); 

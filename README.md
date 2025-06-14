@@ -218,7 +218,7 @@ $ pnpm test:coverage # Generate Istanbul coverage report (≥ 98 % required)
 Husky + lint-staged auto-fix and format code before every commit.
 
 ### Continuous Integration
-CI runs lint, type-check and the complete Vitest suite (with coverage threshold **98 % lines/statements**) on every push/PR.
+CI runs lint, type-check and the complete Vitest suite (with coverage threshold defined in Vitest config) on every push/PR.
 
 ### Automated Releases
 This project uses **[semantic-release](https://semantic-release.gitbook.io/semantic-release/)** to automate versioning, changelog generation, and release publishing. All releases are triggered automatically from the `main` branch based on conventional commit messages.
