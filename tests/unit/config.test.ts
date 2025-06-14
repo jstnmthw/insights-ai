@@ -33,14 +33,17 @@ describe('config/loadConfig', () => {
 
     const cfg = loadConfig();
 
-    expect(cfg).toEqual({
-      apiKey: 'dummy-key',
-      urls: ['https://example.com', 'https://google.com'],
-      strategies: ['desktop', 'mobile'],
-      concurrency: 2,
-      runsPerUrl: 3,
-      cfgPath: fixturePath,
-    });
+    expect(cfg).toEqual(
+      expect.objectContaining({
+        apiKey: 'dummy-key',
+        urls: ['https://example.com', 'https://google.com'],
+        strategies: ['desktop', 'mobile'],
+        concurrency: 2,
+        runsPerUrl: 3,
+        cfgPath: fixturePath,
+        ai: expect.any(Object),
+      })
+    );
   });
 
   it('throws ConfigError when PSI_KEY is missing', () => {
@@ -82,5 +85,17 @@ describe('config/loadConfig', () => {
     expect(cfg.runsPerUrl).toBe(1);
 
     fs.unlinkSync(tempPath);
+  });
+
+  it('parses AI config correctly', () => {
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: fixturePath,
+      AI_SUMMARY_ENABLED: 'true',
+      OPENAI_API_KEY: 'openai-key',
+    });
+
+    const cfg = loadConfig();
+    expect(cfg.ai).toEqual({ enabled: true, apiKey: 'openai-key', model: 'gpt-4o' });
   });
 });

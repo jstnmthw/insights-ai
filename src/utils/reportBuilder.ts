@@ -44,3 +44,8 @@ export function buildMarkdownReport(
 
   return mdContent;
 }
+
+export function appendAiSummary(mdContent: string, summarySection: string): string {
+  if (!summarySection.trim()) return mdContent;
+  return `${mdContent}\n\n## AI Summary\n\n${summarySection}\n`;
+}

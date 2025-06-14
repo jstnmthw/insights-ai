@@ -44,6 +44,8 @@ A robust Node.js CLI tool that batch‑runs Google PageSpeed Insights for any li
 * Outputs clean ASCII tables with **muted gray headers**
 * **Timestamped Markdown reports** saved to `logs/` directory
 * Uses Google's public REST API – no local Chrome or Lighthouse required
+* **AI-powered summaries** (optional) generated via OpenAI API with actionable performance recommendations
+* Automatic "**Open in Cursor**" link for one-click remediation assistance
 
 ---
 
@@ -96,6 +98,9 @@ PSI_CONFIG_FILE=urls.yml
 PSI_STRATEGIES=desktop,mobile
 PSI_CONCURRENCY=4
 PSI_RUNS_PER_URL=1
+AI_SUMMARY_ENABLED=true
+OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+OPENAI_MODEL=gpt-3.5-turbo
 ```
 
 ### Config file format
@@ -119,6 +124,9 @@ urls:
 | `PSI_STRATEGIES` | `desktop,mobile` | Comma-separated list of test strategies |
 | `PSI_CONCURRENCY` | `4` | Number of concurrent API requests |
 | `PSI_RUNS_PER_URL` | `1` | Number of times to test each URL (for median calculation) |
+| `AI_SUMMARY_ENABLED` | `false` | Set to `true` to append AI-generated summaries to the report |
+| `OPENAI_API_KEY` | — | Your OpenAI API key (required when summaries are enabled) |
+| `OPENAI_MODEL` | `gpt-3.5-turbo` | Chat model to use for summaries |
 
 ---
 

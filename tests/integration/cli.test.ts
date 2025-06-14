@@ -44,6 +44,7 @@ const dummyConfig = {
   concurrency: 1,
   runsPerUrl: 1,
   cfgPath: 'urls.yml',
+  ai: { enabled: false, model: 'gpt-3.5-turbo' },
 };
 
 vi.mock('../../src/config/index.js', () => ({

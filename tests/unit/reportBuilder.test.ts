@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { buildMarkdownReport } from '../../src/utils/reportBuilder.js';
+import { buildMarkdownReport, appendAiSummary } from '../../src/utils/reportBuilder.js';
 import { AppConfig } from '../../src/config/index.js';
 import { MedianResult } from '../../src/types/psi.js';
 
@@ -11,6 +11,7 @@ const cfg: AppConfig = {
   concurrency: 1,
   runsPerUrl: 1,
   cfgPath: 'urls.yml',
+  ai: { enabled: false, model: 'gpt-3.5-turbo' },
 };
 
 const medianResults: MedianResult[] = [
@@ -50,5 +51,21 @@ Started at TEST_DATE
 | https://example.com | desktop | 1 | 🟢 90 | 🟢 2000 ms | 🟢 1000 ms | 🟢 0.050 | 🟢 100 ms |
 "
     `);
+  });
+});
+
+describe('utils/reportBuilder.appendAiSummary', () => {
+  it('appendAiSummary returns original content when summarySection is empty', () => {
+    const original = '# Report';
+    const result = appendAiSummary(original, '   ');
+    expect(result).toBe(original);
+  });
+
+  it('appendAiSummary appends formatted summary when non-empty', () => {
+    const original = '# Report';
+    const summary = '**Overview**: Good';
+    const expected = `${original}\n\n## AI Summary\n\n${summary}\n`;
+    const result = appendAiSummary(original, summary);
+    expect(result).toBe(expected);
   });
 }); 

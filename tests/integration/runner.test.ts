@@ -12,6 +12,7 @@ vi.mock('../../src/config/index.js', () => ({
     concurrency: 2,
     runsPerUrl: 3,
     cfgPath: 'urls.yml',
+    ai: { enabled: false, model: 'gpt-3.5-turbo' },
   }),
 }));
 
@@ -66,4 +67,4 @@ describe('integration/executeRuns', () => {
 
     expect(progressCalls).toEqual([1, 2, 3]);
   });
-}); 
+});

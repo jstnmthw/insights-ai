@@ -12,6 +12,11 @@ export interface AppConfig {
   concurrency: number;
   runsPerUrl: number;
   cfgPath: string;
+  ai: {
+    enabled: boolean;
+    apiKey?: string;
+    model: string;
+  };
 }
 
 export function loadConfig(): AppConfig {
@@ -41,6 +46,25 @@ export function loadConfig(): AppConfig {
   const concurrency = parseInt(process.env.PSI_CONCURRENCY || '4', 10);
   const runsPerUrl = parseInt(process.env.PSI_RUNS_PER_URL || '1', 10);
 
+  // --- AI configuration processing ---
+  const aiEnabledEnv = process.env.AI_SUMMARY_ENABLED ?? 'false';
+  const aiEnabled = aiEnabledEnv.toLowerCase() === 'true';
+  const openAIApiKey = process.env.OPENAI_API_KEY;
+  const openAIModel = (process.env.OPENAI_MODEL || 'gpt-3.5-turbo').trim();
+
+  if (aiEnabled && !openAIApiKey) {
+    // Warn but do not throw; feature will be disabled gracefully
+    console.warn(
+      'AI summaries are enabled (AI_SUMMARY_ENABLED=true), but OPENAI_API_KEY is missing. Skipping summaries.'
+    );
+  }
+
+  const aiConfig = {
+    enabled: aiEnabled && !!openAIApiKey,
+    apiKey: openAIApiKey,
+    model: openAIModel,
+  } as const;
+
   return {
     apiKey,
     urls,
@@ -48,5 +72,6 @@ export function loadConfig(): AppConfig {
     concurrency,
     runsPerUrl,
     cfgPath,
+    ai: aiConfig,
   };
 }
