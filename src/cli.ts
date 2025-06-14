@@ -20,7 +20,11 @@ import {
   getTbtColor,
   colorize,
 } from './utils/metrics.js';
-import { buildMarkdownReport, appendAiSummary } from './utils/reportBuilder.js';
+import {
+  buildComprehensiveMarkdownReport,
+  appendAiSummary,
+  buildMarkdownReport,
+} from './utils/reportBuilder.js';
 
 // ---------------------------------------------------------
 // Main function
@@ -51,8 +55,10 @@ async function main(): Promise<void> {
   // Display results table
   renderResultsTable(medianResults);
 
-  // Generate Markdown report using helper
-  let mdContent = buildMarkdownReport(cfg, medianResults, subheaderPlain, runInfo);
+  // Generate Markdown report with optional detailed audit data
+  let mdContent = cfg.detailedReport
+    ? buildComprehensiveMarkdownReport(cfg, medianResults, subheaderPlain, runInfo)
+    : buildMarkdownReport(cfg, medianResults, subheaderPlain, runInfo);
 
   // Generate AI summaries
   if (cfg.ai.enabled && cfg.ai.apiKey) {
@@ -111,7 +117,13 @@ function printHeader(cfg: ReturnType<typeof loadConfig>): {
   const aiStatusColored = cfg.ai.enabled ? chalk.green('Enabled') : chalk.gray('Disabled');
   const aiInfo = `AI Summaries: ${aiStatusColored}`;
 
-  console.log(`${header}\n${subheader}\n${runInfo}\n${aiInfo}\n`);
+  // Detailed report status information
+  const detailedStatusColored = cfg.detailedReport
+    ? chalk.green('Enabled')
+    : chalk.gray('Disabled');
+  const detailedInfo = `Detailed Reports: ${detailedStatusColored}`;
+
+  console.log(`${header}\n${subheader}\n${runInfo}\n${aiInfo}\n${detailedInfo}\n`);
 
   return { timestamp, subheaderPlain, runInfo };
 }
@@ -161,17 +173,8 @@ async function generateAiSummary(
 
   for (const r of medianResults) {
     try {
-      const condensed = {
-        url: r.url,
-        strategy: r.strategy,
-        score: r.medianScore,
-        lcp: r.medianLcp,
-        fcp: r.medianFcp,
-        cls: r.medianCls,
-        tbt: r.medianTbt,
-      } as const;
-
-      let summary = await gpt.generateReportSummary(condensed);
+      // Use comprehensive audit data for detailed AI analysis
+      let summary = await gpt.generateComprehensiveReportSummary(r.auditData);
 
       // Strip potential code fences
       summary = summary

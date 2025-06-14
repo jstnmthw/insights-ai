@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { buildMarkdownReport, appendAiSummary, formatMetric } from '../../src/utils/reportBuilder.js';
 import { AppConfig } from '../../src/config/index.js';
-import { MedianResult } from '../../src/types/psi.js';
+import { MedianResult, ComprehensivePsiData } from '../../src/types/psi.js';
 
 const cfg: AppConfig = {
   apiKey: 'dummy',
@@ -11,7 +11,27 @@ const cfg: AppConfig = {
   concurrency: 1,
   runsPerUrl: 1,
   cfgPath: 'urls.yml',
+  detailedReport: false,
   ai: { enabled: false, model: 'gpt-3.5-turbo' },
+};
+
+// Mock audit data for testing
+const mockAuditData: ComprehensivePsiData = {
+  url: 'https://example.com',
+  strategy: 'desktop',
+  performanceScore: 90,
+  metrics: {
+    lcp: 2000,
+    fcp: 1000,
+    cls: 0.05,
+    tbt: 100,
+    si: 1500,
+  },
+  opportunities: [],
+  diagnostics: [],
+  passedAudits: [],
+  lighthouseVersion: '10.0.0',
+  fetchTime: '2025-01-01T00:00:00.000Z',
 };
 
 const medianResults: MedianResult[] = [
@@ -25,6 +45,7 @@ const medianResults: MedianResult[] = [
     medianCls: 0.05,
     medianTbt: 100,
     individualRuns: [],
+    auditData: mockAuditData,
   },
 ];
 
@@ -65,6 +86,7 @@ Started at TEST_DATE
         medianCls: 0,
         medianTbt: 0,
         individualRuns: [],
+        auditData: { ...mockAuditData, performanceScore: 0 },
       },
     ];
 

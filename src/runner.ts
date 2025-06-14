@@ -49,6 +49,9 @@ export async function executeRuns(
     const fcps = runs.map((r) => r.fcp.numeric);
     const clss = runs.map((r) => r.cls.numeric);
     const tbts = runs.map((r) => r.tbt.numeric);
+    const medianIndex = Math.floor(runs.length / 2);
+    const sortedRuns = [...runs].sort((a, b) => a.score - b.score);
+    const medianRun = sortedRuns[medianIndex];
 
     medians.push({
       url,
@@ -60,6 +63,7 @@ export async function executeRuns(
       medianCls: median(clss),
       medianTbt: median(tbts),
       individualRuns: runs,
+      auditData: medianRun.auditData,
     });
   }
 

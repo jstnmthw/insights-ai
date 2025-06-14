@@ -73,6 +73,8 @@ describe('config/loadConfig', () => {
   it('uses default env values when optional vars absent', () => {
     clearEnv();
     delete process.env.PSI_STRATEGIES;
+    delete process.env.PSI_CONCURRENCY;
+    delete process.env.PSI_RUNS_PER_URL;
     process.env.PSI_KEY = 'abc';
     // create temp urls file
     const tempPath = path.join(__dirname, 'one-url.yml');

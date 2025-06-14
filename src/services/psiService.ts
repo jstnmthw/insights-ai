@@ -1,8 +1,9 @@
 import axios from 'axios';
 
 import { ApiError } from '../errors/index.js';
-import { Metric, RunResult, LighthouseAudits, PsiApiResponse } from '../types/psi.js';
+import type { Metric, RunResult, LighthouseAudits, PsiApiResponse } from '../types/psi.js';
 
+import { auditExtractor } from './auditExtractor.js';
 import { getReportFilename, readRawReport, saveRawReport } from './logService.js';
 
 function extractMetric(audits: LighthouseAudits, id: string): Metric {
@@ -14,11 +15,7 @@ function extractMetric(audits: LighthouseAudits, id: string): Metric {
 
 // Check if we're in development mode
 function isDevelopmentMode(): boolean {
-  return (
-    process.env.NODE_ENV === 'development' ||
-    process.argv[1]?.includes('tsx') ||
-    process.argv[1]?.includes('ts-node')
-  );
+  return process.argv.some((arg) => arg.includes('tsx') || arg.includes('ts-node'));
 }
 
 export async function runPsi(
@@ -72,14 +69,18 @@ export async function runPsi(
   const lh = data.lighthouseResult;
   const core = lh.audits;
 
+  // Extract comprehensive audit data
+  const auditData = auditExtractor.extractComprehensiveData(lh, url, strategy);
+
   return {
     url,
     strategy,
     runNumber,
-    score: Math.round(lh.categories.performance.score * 100),
+    score: Math.round((lh.categories.performance.score ?? 0) * 100),
     lcp: extractMetric(core, 'largest-contentful-paint'),
     fcp: extractMetric(core, 'first-contentful-paint'),
     cls: extractMetric(core, 'cumulative-layout-shift'),
     tbt: extractMetric(core, 'total-blocking-time'),
+    auditData,
   };
 }

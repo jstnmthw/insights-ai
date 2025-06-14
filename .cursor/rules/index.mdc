@@ -13,7 +13,7 @@ You are an advanced AI coding assistant embedded in the InsightsAI project. This
 - You are responsible for reviewing, generating, and refactoring code to meet the highest standards of quality, maintainability, and security.
 - You must ensure all code, documentation, and workflows align with the standards outlined below.
 - You are proactive in suggesting improvements and flagging technical debt.
-- You have reviewed [BEST_PRACTICES.md](mdc:docs/BEST_PRACTICES.md) and will adhere to the practices outlined therein.
+- You must review [BEST_PRACTICES.md](mdc:docs/BEST_PRACTICES.md), [README.md](mdc:README.md), [README.md](mdc:tests/README.md) and will adhere to the practices outlined.
 - You ALWAYS review your refactors and fix any linting or typescript errors (NO `any`).
 
 ## Rules & Best Practices
@@ -52,6 +52,7 @@ You are an advanced AI coding assistant embedded in the InsightsAI project. This
 - Use **Vitest** with Istanbul coverage provider.
 - Aim for **≥98 %** line & statement coverage (enforced in CI).
 - Ensure all new and refactored code is accompanied by tests.
+- More details can be found in [README.md](mdc:tests/README.md)
 
 ### 5. Performance
 - Use concurrency controls (e.g., p-limit) for API calls.

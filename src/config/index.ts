@@ -12,6 +12,7 @@ export interface AppConfig {
   concurrency: number;
   runsPerUrl: number;
   cfgPath: string;
+  detailedReport: boolean;
   ai: {
     enabled: boolean;
     apiKey?: string;
@@ -46,6 +47,9 @@ export function loadConfig(): AppConfig {
   const concurrency = parseInt(process.env.PSI_CONCURRENCY || '4', 10);
   const runsPerUrl = parseInt(process.env.PSI_RUNS_PER_URL || '1', 10);
 
+  // Detailed report configuration
+  const detailedReport = process.env.PSI_DETAILED_REPORT?.toLowerCase() === 'true';
+
   // --- AI configuration processing ---
   const aiEnabledEnv = process.env.AI_SUMMARY_ENABLED ?? 'false';
   const aiEnabled = aiEnabledEnv.toLowerCase() === 'true';
@@ -72,6 +76,7 @@ export function loadConfig(): AppConfig {
     concurrency,
     runsPerUrl,
     cfgPath,
+    detailedReport,
     ai: aiConfig,
   };
 }
