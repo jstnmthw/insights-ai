@@ -100,6 +100,31 @@ Consider adding branch protection rules for `main`:
 
 ## Troubleshooting
 
+### Coverage Discrepancy Between Local and Codecov
+
+**Problem**: Local coverage shows 97.87% but Codecov shows ~90%
+
+**Root Cause**: Different coverage calculation methods
+- **Local Vitest**: Reports **statement coverage** (97.87%)
+- **Codecov**: Uses a **weighted average** of lines + branches coverage
+  - Lines: 98.45%
+  - Branches: 87.68%
+  - Weighted average: ~90%
+
+**Solutions**:
+1. **Create codecov.yml** to align with local settings (already provided)
+2. **Focus on branch coverage** - the 87.68% branch coverage is pulling down the overall score
+3. **Improve branch coverage** by testing more conditional paths and error scenarios
+
+**To debug coverage discrepancies**:
+```bash
+# Run local coverage with detailed output
+pnpm test:coverage:debug
+
+# Check lcov file metrics
+awk '/^LF:/ {total_lines+=$2} /^LH:/ {covered_lines+=$2} /^BRF:/ {total_branches+=$2} /^BRH:/ {covered_branches+=$2} END {if(total_lines>0) printf "Lines: %.2f%% (%d/%d)\n", covered_lines/total_lines*100, covered_lines, total_lines; if(total_branches>0) printf "Branches: %.2f%% (%d/%d)\n", covered_branches/total_branches*100, covered_branches, total_branches}' FS=: coverage/lcov.info
+```
+
 ### Common Issues
 
 #### 1. Missing Coverage Report

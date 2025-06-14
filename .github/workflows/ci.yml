@@ -52,6 +52,8 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
           verbose: true
+          override_branch: ${{ github.head_ref }}
+          override_commit: ${{ github.event.pull_request.head.sha }}
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           
