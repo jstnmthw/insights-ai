@@ -1,5 +1,7 @@
 # InsightsAI CLI
 
+[![codecov](https://codecov.io/gh/jstnmthw/insights-ai/branch/main/graph/badge.svg?token=F7W8ZLUO1P)](https://codecov.io/gh/jstnmthw/insights-ai)
+
 A robust Node.js CLI tool that batch‑runs Google PageSpeed Insights for any list of URLs defined in a YAML file, prints color‑coded metrics, and generates Markdown reports. Built for maintainability, testability, and CI/CD workflows.
 
 ---
