@@ -96,6 +96,7 @@ describe('config/loadConfig', () => {
       PSI_CONFIG_FILE: fixturePath,
       AI_SUMMARY_ENABLED: 'true',
       OPENAI_API_KEY: 'openai-key',
+      OPENAI_MODEL: 'gpt-3.5-turbo',
     });
 
     const cfg = loadConfig();

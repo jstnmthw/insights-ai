@@ -104,4 +104,327 @@ describe('GptService.generateReportSummary', () => {
     const svc = new GptService({ apiKey: dummyKey });
     await expect(svc.generateReportSummary(psiData)).rejects.toBeInstanceOf(ApiError);
   });
+});
+
+describe('GptService.generateComprehensiveReportSummary', () => {
+  const dummyKey = 'sk-123';
+  const comprehensiveData = {
+    url: 'https://example.com',
+    strategy: 'desktop' as const,
+    performanceScore: 85,
+    metrics: {
+      lcp: 2500,
+      fcp: 1200,
+      cls: 0.1,
+      tbt: 150,
+      si: 1800,
+    },
+    opportunities: [
+      {
+        id: 'unused-css-rules',
+        title: 'Remove unused CSS',
+        description: 'Remove dead rules from stylesheets.',
+        score: 0.3,
+        scoreDisplayMode: 'metricSavings' as const,
+        displayValue: 'Potential savings of 1,024 KiB',
+        metricSavings: { LCP: 200, FCP: 100 },
+        details: {
+          type: 'opportunity' as const,
+          items: [
+            {
+              url: 'https://example.com/styles.css',
+              wastedBytes: 1048576,
+            },
+          ],
+          headings: [
+            { key: 'url', valueType: 'url' as const, label: 'URL' },
+          ],
+        },
+      },
+    ],
+    diagnostics: [
+      {
+        id: 'dom-size',
+        title: 'Avoid an excessive DOM size',
+        description: 'A large DOM will increase memory usage.',
+        score: null,
+        scoreDisplayMode: 'informative' as const,
+        displayValue: '1,500 elements',
+        details: {
+          type: 'table' as const,
+          items: [
+            {
+              node: {
+                type: 'node' as const,
+                path: 'body > div',
+                selector: 'body > div.container',
+                snippet: '<div class="container">...</div>',
+                nodeLabel: 'Container',
+              },
+            },
+          ],
+          headings: [
+            { key: 'node', valueType: 'node' as const, label: 'Element' },
+          ],
+        },
+      },
+    ],
+    passedAudits: [],
+    lighthouseVersion: '10.0.0',
+    fetchTime: '2025-01-01T00:00:00.000Z',
+  };
+
+  it('returns comprehensive summary when API responds successfully', async () => {
+    const mockSummary = '### Performance Analysis\n\nGood overall performance with some opportunities.';
+    mockFetch({ ok: true, status: 200 }, {
+      choices: [
+        { message: { content: mockSummary } },
+      ],
+    });
+
+    const svc = new GptService({ apiKey: dummyKey });
+    const summary = await svc.generateComprehensiveReportSummary(comprehensiveData);
+
+    expect(summary).toBe(mockSummary);
+  });
+
+  it('throws ApiError on API failure', async () => {
+    mockFetch({ ok: false, status: 500 }, { error: 'server error' });
+    const svc = new GptService({ apiKey: dummyKey });
+    await expect(svc.generateComprehensiveReportSummary(comprehensiveData)).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('builds comprehensive prompt with audit data', async () => {
+    const mockSummary = 'Generated summary';
+    mockFetch({ ok: true, status: 200 }, {
+      choices: [{ message: { content: mockSummary } }],
+    });
+
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(comprehensiveData);
+
+    // Verify the prompt includes key information
+    const fetchCall = global.fetch as any;
+    expect(fetchCall).toHaveBeenCalledWith(
+      'https://api.openai.com/v1/chat/completions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${dummyKey}`,
+        }),
+        body: expect.stringContaining('https://example.com'),
+      })
+    );
+
+    // Parse and check the request body
+    const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
+    const prompt = requestBody.messages[0].content;
+
+    expect(prompt).toContain('URL: https://example.com (desktop)');
+    expect(prompt).toContain('Performance Score: 85/100');
+    expect(prompt).toContain('LCP (Largest Contentful Paint): 2500ms');
+    expect(prompt).toContain('Remove unused CSS');
+    expect(prompt).toContain('Avoid an excessive DOM size');
+    expect(prompt).toContain('File: https://example.com/styles.css');
+    expect(prompt).toContain('body > div.container'); // The element selector appears in the prompt
+  });
+
+  it('handles opportunities without details', async () => {
+    const dataWithoutDetails = {
+      ...comprehensiveData,
+      opportunities: [
+        {
+          id: 'simple-opportunity',
+          title: 'Simple Opportunity',
+          description: 'A simple opportunity',
+          score: 0.5,
+          scoreDisplayMode: 'metricSavings' as const,
+          displayValue: 'Save 100ms',
+          // No details property
+        },
+      ],
+    };
+
+    const mockSummary = 'Generated summary';
+    mockFetch({ ok: true, status: 200 }, {
+      choices: [{ message: { content: mockSummary } }],
+    });
+
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithoutDetails);
+
+    const fetchCall = global.fetch as any;
+    const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
+    const prompt = requestBody.messages[0].content;
+
+    expect(prompt).toContain('Simple Opportunity: Save 100ms (Multiple resources)');
+  });
+
+  it('handles diagnostics with URL items', async () => {
+    const dataWithUrlDiagnostics = {
+      ...comprehensiveData,
+      diagnostics: [
+        {
+          id: 'url-diagnostic',
+          title: 'URL Diagnostic',
+          description: 'A diagnostic with URLs',
+          score: null,
+          scoreDisplayMode: 'informative' as const,
+          details: {
+            type: 'table' as const,
+            items: [
+              { url: 'https://example.com/long/path/to/resource.js' },
+              { url: 'https://example.com/script.js' },
+            ],
+            headings: [
+              { key: 'url', valueType: 'url' as const, label: 'URL' },
+            ],
+          },
+        },
+      ],
+    };
+
+    const mockSummary = 'Generated summary';
+    mockFetch({ ok: true, status: 200 }, {
+      choices: [{ message: { content: mockSummary } }],
+    });
+
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithUrlDiagnostics);
+
+    const fetchCall = global.fetch as any;
+    const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
+    const prompt = requestBody.messages[0].content;
+
+    expect(prompt).toContain('URL Diagnostic (/long/path/to/resource.js, /script.js)');
+  });
+
+  it('limits opportunities and diagnostics in prompt', async () => {
+    const manyOpportunitiesData = {
+      ...comprehensiveData,
+      opportunities: Array.from({ length: 15 }, (_, i) => ({
+        id: `opportunity-${i}`,
+        title: `Opportunity ${i}`,
+        description: `Description ${i}`,
+        score: 0.5,
+        scoreDisplayMode: 'metricSavings' as const,
+        displayValue: `Save ${i * 100}ms`,
+      })),
+      diagnostics: Array.from({ length: 10 }, (_, i) => ({
+        id: `diagnostic-${i}`,
+        title: `Diagnostic ${i}`,
+        description: `Description ${i}`,
+        score: null,
+        scoreDisplayMode: 'informative' as const,
+      })),
+    };
+
+    const mockSummary = 'Generated summary';
+    mockFetch({ ok: true, status: 200 }, {
+      choices: [{ message: { content: mockSummary } }],
+    });
+
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(manyOpportunitiesData);
+
+    const fetchCall = global.fetch as any;
+    const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
+    const prompt = requestBody.messages[0].content;
+
+    // Should include first 10 opportunities
+    expect(prompt).toContain('Opportunity 0');
+    expect(prompt).toContain('Opportunity 9');
+    expect(prompt).not.toContain('Opportunity 10');
+
+    // Should include first 5 diagnostics
+    expect(prompt).toContain('Diagnostic 0');
+    expect(prompt).toContain('Diagnostic 4');
+    expect(prompt).not.toContain('Diagnostic 5');
+  });
+
+  it('handles empty opportunities and diagnostics gracefully', async () => {
+    const emptyData = {
+      ...comprehensiveData,
+      opportunities: [],
+      diagnostics: [],
+    };
+
+    const mockSummary = 'Generated summary';
+    mockFetch({ ok: true, status: 200 }, {
+      choices: [{ message: { content: mockSummary } }],
+    });
+
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(emptyData);
+
+    const fetchCall = global.fetch as any;
+    const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
+    const prompt = requestBody.messages[0].content;
+
+    expect(prompt).toContain('No major opportunities identified');
+    expect(prompt).toContain('No significant diagnostics');
+  });
+
+  it('handles invalid URLs in diagnostic items gracefully', async () => {
+    const dataWithInvalidUrls = {
+      ...comprehensiveData,
+      diagnostics: [
+        {
+          id: 'url-diagnostic',
+          title: 'URL Diagnostic',
+          description: 'A diagnostic with invalid URLs',
+          score: null,
+          scoreDisplayMode: 'informative' as const,
+          details: {
+            type: 'table' as const,
+            items: [
+              { url: 'invalid-url-format' }, // This will cause URL constructor to throw
+              { url: 'https://example.com/valid.js' },
+            ],
+            headings: [
+              { key: 'url', valueType: 'url' as const, label: 'URL' },
+            ],
+          },
+        },
+      ],
+    };
+
+    const mockSummary = 'Generated summary';
+    mockFetch({ ok: true, status: 200 }, {
+      choices: [{ message: { content: mockSummary } }],
+    });
+
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithInvalidUrls);
+
+    const fetchCall = global.fetch as any;
+    const requestBody = JSON.parse(fetchCall.mock.calls[0][1].body);
+    const prompt = requestBody.messages[0].content;
+
+    // Should handle invalid URL gracefully and fall back to original string
+    expect(prompt).toContain('invalid-url-format, /valid.js');
+  });
+
+  it('calls safeReadText when response.text() is available', async () => {
+    // Create a response that fails when reading text
+    const mockResponse = {
+      ok: false,
+      status: 500,
+      text: vi.fn().mockRejectedValue(new Error('Failed to read')),
+    };
+    global.fetch = vi.fn(async () => mockResponse) as unknown as typeof fetch;
+
+    const svc = new GptService({ apiKey: dummyKey });
+    
+    try {
+      await svc.generateReportSummary({ score: 90 });
+    } catch (error) {
+      // Expected to throw ApiError
+      expect(error).toBeInstanceOf(ApiError);
+    }
+
+    // Verify safeReadText was called and handled the error
+    expect(mockResponse.text).toHaveBeenCalled();
+  });
 }); 

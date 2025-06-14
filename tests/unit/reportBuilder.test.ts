@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { buildMarkdownReport, appendAiSummary, formatMetric } from '../../src/utils/reportBuilder.js';
+import { buildMarkdownReport, appendAiSummary, formatMetric, formatBytes, buildComprehensiveMarkdownReport } from '../../src/utils/reportBuilder.js';
 import { AppConfig } from '../../src/config/index.js';
 import { MedianResult, ComprehensivePsiData } from '../../src/types/psi.js';
 
@@ -27,9 +27,70 @@ const mockAuditData: ComprehensivePsiData = {
     tbt: 100,
     si: 1500,
   },
-  opportunities: [],
-  diagnostics: [],
-  passedAudits: [],
+  opportunities: [
+    {
+      id: 'unused-css-rules',
+      title: 'Remove unused CSS',
+      description: 'Remove dead rules from stylesheets.',
+      score: 0.3,
+      scoreDisplayMode: 'metricSavings',
+      displayValue: 'Potential savings of 1,024 KiB',
+      metricSavings: { LCP: 200, FCP: 100 },
+      details: {
+        type: 'opportunity',
+        items: [
+          {
+            url: 'https://example.com/styles.css',
+            wastedBytes: 1048576,
+            totalBytes: 2097152,
+          },
+        ],
+        headings: [
+          { key: 'url', valueType: 'url', label: 'URL' },
+          { key: 'wastedBytes', valueType: 'bytes', label: 'Wasted Bytes' },
+        ],
+      },
+    },
+  ],
+  diagnostics: [
+    {
+      id: 'dom-size',
+      title: 'Avoid an excessive DOM size',
+      description: 'A large DOM will increase memory usage.',
+      score: null,
+      scoreDisplayMode: 'informative',
+      displayValue: '1,500 elements',
+      details: {
+        type: 'table',
+        items: [
+          {
+            node: {
+              type: 'node',
+              path: 'body > div.container',
+              selector: 'body > div.container',
+              snippet: '<div class="container">...</div>',
+              nodeLabel: 'Container div',
+            },
+            score: 0.8,
+          },
+        ],
+        headings: [
+          { key: 'node', valueType: 'node', label: 'Element' },
+          { key: 'score', valueType: 'text', label: 'Score' },
+        ],
+      },
+    },
+  ],
+  passedAudits: [
+    {
+      id: 'first-contentful-paint',
+      title: 'First Contentful Paint',
+      description: 'Fast FCP helps ensure users feel like the page is loading.',
+      score: 1,
+      scoreDisplayMode: 'numeric',
+      displayValue: '1.0 s',
+    },
+  ],
   lighthouseVersion: '10.0.0',
   fetchTime: '2025-01-01T00:00:00.000Z',
 };
@@ -137,5 +198,337 @@ describe('utils/reportBuilder.appendAiSummary', () => {
     const expected = `${original}\n\n## AI Summary\n\n${summary}\n`;
     const result = appendAiSummary(original, summary);
     expect(result).toBe(expected);
+  });
+});
+
+describe('utils/reportBuilder.formatBytes', () => {
+  it('formats bytes correctly', () => {
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(1024)).toBe('1 KB');
+    expect(formatBytes(1536)).toBe('1.5 KB');
+    expect(formatBytes(1048576)).toBe('1 MB');
+    expect(formatBytes(1073741824)).toBe('1 GB');
+  });
+
+  it('handles large numbers correctly', () => {
+    expect(formatBytes(2560000)).toBe('2.44 MB');
+    expect(formatBytes(5000000000)).toBe('4.66 GB');
+  });
+});
+
+describe('utils/reportBuilder.buildComprehensiveMarkdownReport', () => {
+  it('builds comprehensive report with audit details', () => {
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      medianResults,
+      'Testing comprehensive report',
+      'Started at TEST_DATE'
+    );
+
+    // Should include basic report content
+    expect(result).toContain('# InsightsAI Analysis');
+    expect(result).toContain('Testing comprehensive report');
+    expect(result).toContain('Final Results (Medians)');
+
+    // Should include detailed analysis sections
+    expect(result).toContain('## Detailed Analysis: https://example.com (desktop)');
+    expect(result).toContain('### ⚡ Performance Opportunities');
+    expect(result).toContain('### 🔍 Diagnostics');
+    expect(result).toContain('### ✅ Passed Audits');
+
+    // Should include opportunity details
+    expect(result).toContain('#### Remove unused CSS');
+    expect(result).toContain('Remove dead rules from stylesheets.');
+    expect(result).toContain('**Potential savings:** Potential savings of 1,024 KiB');
+    expect(result).toContain('**Metric improvements:** LCP: 200ms, FCP: 100ms');
+
+    // Should include diagnostic details
+    expect(result).toContain('#### Avoid an excessive DOM size');
+    expect(result).toContain('A large DOM will increase memory usage.');
+    expect(result).toContain('**Value:** 1,500 elements');
+
+    // Should include passed audits
+    expect(result).toContain('First Contentful Paint');
+    expect(result).toContain('(1.0 s)');
+  });
+
+  it('handles empty opportunities gracefully', () => {
+    const emptyAuditData = { ...mockAuditData, opportunities: [] };
+    const emptyResults = [{ ...medianResults[0], auditData: emptyAuditData }];
+
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      emptyResults,
+      'Testing empty opportunities',
+      'Started at TEST_DATE'
+    );
+
+    expect(result).toContain('### 🟢 Performance Opportunities');
+    expect(result).toContain('No significant optimization opportunities identified.');
+  });
+
+  it('handles empty diagnostics gracefully', () => {
+    const emptyAuditData = { ...mockAuditData, diagnostics: [] };
+    const emptyResults = [{ ...medianResults[0], auditData: emptyAuditData }];
+
+    const result = buildComprehensiveMarkdownReport(
+      cfg,    
+      emptyResults,
+      'Testing empty diagnostics',
+      'Started at TEST_DATE'
+    );
+
+    expect(result).toContain('### 🔍 Diagnostics');
+    expect(result).toContain('No significant diagnostic issues found.');
+  });
+
+  it('handles resource table rendering', () => {
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      medianResults,
+      'Testing resource table',
+      'Started at TEST_DATE'
+    );
+
+    // Should render resource table for opportunities
+    expect(result).toContain('| Resource | Size | Potential Savings |');
+    expect(result).toContain('| :-- | --: | --: |');
+    expect(result).toContain('| `/styles.css` | 2 MB | 1 MB |');
+  });
+
+  it('handles DOM element rendering', () => {
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      medianResults,
+      'Testing DOM elements',
+      'Started at TEST_DATE'
+    );
+
+    // Should render DOM elements for diagnostics
+    expect(result).toContain('- **Element:** `body > div.container`');
+    expect(result).toContain('- **Code:** `<div class="container">...</div>`');
+    expect(result).toContain('- **Impact:** 0.8');
+  });
+
+  it('limits opportunities and diagnostics to reasonable counts', () => {
+    // Create audit data with many opportunities and diagnostics
+    const manyOpportunities = Array.from({ length: 15 }, (_, i) => ({
+      id: `opportunity-${i}`,
+      title: `Opportunity ${i}`,
+      description: `Description ${i}`,
+      score: 0.5,
+      scoreDisplayMode: 'metricSavings' as const,
+      displayValue: `Save ${i * 100}ms`,
+    }));
+
+    const manyDiagnostics = Array.from({ length: 12 }, (_, i) => ({
+      id: `diagnostic-${i}`,
+      title: `Diagnostic ${i}`,
+      description: `Description ${i}`,
+      score: null,
+      scoreDisplayMode: 'informative' as const,
+      displayValue: `${i} issues`,
+    }));
+
+    const manyAuditData = {
+      ...mockAuditData,
+      opportunities: manyOpportunities,
+      diagnostics: manyDiagnostics,
+    };
+
+    const manyResults = [{ ...medianResults[0], auditData: manyAuditData }];
+
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      manyResults,
+      'Testing limits',
+      'Started at TEST_DATE'
+    );
+
+    // Should only show first 10 opportunities
+    expect(result).toContain('#### Opportunity 0');
+    expect(result).toContain('#### Opportunity 9');
+    expect(result).not.toContain('#### Opportunity 10');
+
+    // Should only show first 8 diagnostics
+    expect(result).toContain('#### Diagnostic 0');
+    expect(result).toContain('#### Diagnostic 7');
+    expect(result).not.toContain('#### Diagnostic 8');
+  });
+
+  it('handles missing audit details gracefully', () => {
+    const auditDataWithoutDetails = {
+      ...mockAuditData,
+      opportunities: [
+        {
+          id: 'test-opportunity',
+          title: 'Test Opportunity',
+          description: 'Test description',
+          score: 0.5,
+          scoreDisplayMode: 'metricSavings' as const,
+          displayValue: 'Save 200ms',
+          // No details property
+        },
+      ],
+    };
+
+    const resultsWithoutDetails = [{ ...medianResults[0], auditData: auditDataWithoutDetails }];
+
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      resultsWithoutDetails,
+      'Testing missing details',
+      'Started at TEST_DATE'
+    );
+
+    expect(result).toContain('#### Test Opportunity');
+    expect(result).toContain('Test description');
+    expect(result).toContain('**Potential savings:** Save 200ms');
+  });
+
+  it('handles invalid URLs in resource tables gracefully', () => {
+    const auditDataWithInvalidUrl = {
+      ...mockAuditData,
+      opportunities: [
+        {
+          id: 'test-opportunity',
+          title: 'Test Opportunity',
+          description: 'Test description',
+          score: 0.5,
+          scoreDisplayMode: 'metricSavings' as const,
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              {
+                url: 'invalid-url-format', // This will cause URL constructor to fail
+                wastedBytes: 1000,
+                totalBytes: 2000,
+              },
+            ],
+                         headings: [
+               { key: 'url', valueType: 'url' as const, label: 'URL' },
+             ],
+          },
+        },
+      ],
+    };
+
+    const resultsWithInvalidUrl = [{ ...medianResults[0], auditData: auditDataWithInvalidUrl }];
+
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      resultsWithInvalidUrl,
+      'Testing invalid URL',
+      'Started at TEST_DATE'
+    );
+
+    // Should handle invalid URL gracefully by falling back to original string
+    expect(result).toContain('| `invalid-url-format` | 1.95 KB | 1000 B |');
+  });
+
+  it('handles long snippets in element lists', () => {
+    const auditDataWithLongSnippet = {
+      ...mockAuditData,
+      diagnostics: [
+        {
+          id: 'test-diagnostic',
+          title: 'Test Diagnostic',
+          description: 'Test description',
+          score: null,
+          scoreDisplayMode: 'informative' as const,
+          details: {
+            type: 'table' as const,
+            items: [
+              {
+                node: {
+                  type: 'node' as const,
+                  path: 'body > div',
+                  selector: 'div.test',
+                  snippet: 'a'.repeat(150), // Very long snippet that should be truncated
+                  nodeLabel: 'Test element',
+                },
+                score: 0.5,
+              },
+            ],
+                         headings: [
+               { key: 'node', valueType: 'node' as const, label: 'Element' },
+             ],
+          },
+        },
+      ],
+    };
+
+    const resultsWithLongSnippet = [{ ...medianResults[0], auditData: auditDataWithLongSnippet }];
+
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      resultsWithLongSnippet,
+      'Testing long snippet',
+      'Started at TEST_DATE'
+    );
+
+    // Should truncate long snippets with "..."
+    expect(result).toContain('- **Code:** `' + 'a'.repeat(100) + '...`');
+    expect(result).toContain('- **Impact:** 0.5');
+  });
+
+  it('handles items with only labels in simple list', () => {
+    const auditDataWithLabelItems = {
+      ...mockAuditData,
+      opportunities: [
+        {
+          id: 'test-opportunity',
+          title: 'Test Opportunity',
+          description: 'Test description',
+          score: 0.5,
+          scoreDisplayMode: 'metricSavings' as const,
+          details: {
+            type: 'table' as const,
+            items: [
+              { label: 'First item' },
+              { url: 'https://example.com/resource.js' }, // Has URL but no bytes/ms, so uses simple list
+              { label: 'Third item' },
+            ],
+                         headings: [
+               { key: 'label', valueType: 'text' as const, label: 'Item' },
+             ],
+          },
+        },
+      ],
+    };
+
+    const resultsWithLabelItems = [{ ...medianResults[0], auditData: auditDataWithLabelItems }];
+
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      resultsWithLabelItems,
+      'Testing simple list',
+      'Started at TEST_DATE'
+    );
+
+    // Should render as simple list when no bytes/ms data available
+    expect(result).toContain('- First item');
+    expect(result).toContain('- https://example.com/resource.js');
+    expect(result).toContain('- Third item');
+  });
+
+  it('handles empty passed audits section', () => {
+    const auditDataWithoutPassedAudits = {
+      ...mockAuditData,
+      passedAudits: [],
+    };
+
+    const resultsWithoutPassedAudits = [{ ...medianResults[0], auditData: auditDataWithoutPassedAudits }];
+
+    const result = buildComprehensiveMarkdownReport(
+      cfg,
+      resultsWithoutPassedAudits,
+      'Testing empty passed audits',
+      'Started at TEST_DATE'
+    );
+
+    // Should not include passed audits section when empty
+    expect(result).not.toContain('### ✅ Passed Audits');
   });
 }); 
