@@ -167,19 +167,20 @@ function buildPassedAuditsSection(passedAudits: PsiAudit[]): string {
 function buildAuditItemsTable(items: PsiAuditItem[], _auditId: string): string {
   if (items.length === 0) return '';
 
-  // Determine the best format based on the data available
-  const hasUrls = items.some((item) => item.url);
   const hasNodes = items.some((item) => item.node);
   const hasBytes = items.some((item) => item.wastedBytes || item.totalBytes);
   const hasMs = items.some((item) => item.wastedMs);
 
-  if (hasUrls && (hasBytes || hasMs)) {
+  // Prefer resource table when any byte or time savings data is present, even if URLs are missing.
+  if (hasBytes || hasMs) {
     return buildResourceTable(items);
-  } else if (hasNodes) {
-    return buildElementList(items);
-  } else {
-    return buildSimpleList(items);
   }
+
+  if (hasNodes) {
+    return buildElementList(items);
+  }
+
+  return buildSimpleList(items);
 }
 
 /**
@@ -254,3 +255,6 @@ export function appendAiSummary(mdContent: string, summarySection: string): stri
   if (!summarySection.trim()) return mdContent;
   return `${mdContent}\n\n## AI Summary\n\n${summarySection}\n`;
 }
+
+// Export internal helper for testing purposes (not part of public API)
+export { buildAuditItemsTable };

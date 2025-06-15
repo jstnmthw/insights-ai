@@ -757,5 +757,31 @@ describe('utils/reportBuilder.buildComprehensiveMarkdownReport', () => {
       expect(report).toContain('| Resource | Size | Potential Savings |');
       expect(report).toContain('| `/file1.js` | 1.95 KB | n/a |');
     });
+
+    it('handles items with no url property (falls back to Unknown resource)', () => {
+      const auditData = {
+        ...mockAuditData,
+        opportunities: [{
+          ...mockAuditData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { totalBytes: 1024, wastedBytes: 512 }, // No 'url' field to trigger Unknown resource
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{ ...medianResults[0], auditData }];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+
+      expect(report).toContain('| `Unknown resource` | 1 KB | 512 B |');
+    });
+  });
+
+  it('buildAuditItemsTable returns empty string for empty items array', async () => {
+    const { buildAuditItemsTable } = await import('../../src/utils/reportBuilder.js') as any;
+    const result = buildAuditItemsTable([], 'audit-id');
+    expect(result).toBe('');
   });
 }); 

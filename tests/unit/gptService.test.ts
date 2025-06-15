@@ -811,4 +811,128 @@ describe('GptService.generateComprehensiveReportSummary', () => {
     // Should fall back to pathname when pop() returns empty string
     expect(promptContent).toContain('Multiple Slash Diagnostic (/path/to/directory///): Check implementation');
   });
+});
+
+describe('GptService.buildComprehensivePrompt – DOM selector handling', () => {
+  const dummyKey = 'sk-456';
+
+  // Expose private buildComprehensivePrompt via casting without using the `any` type
+  type GptServicePrivate = {
+    buildComprehensivePrompt: (data: import('../../src/types/psi.js').ComprehensivePsiData) => string;
+  };
+
+  const svc = new GptService({ apiKey: dummyKey }) as unknown as GptServicePrivate;
+
+  it('includes "DOM:" resources for opportunities with node selectors', () => {
+    const data: import('../../src/types/psi.js').ComprehensivePsiData = {
+      url: 'https://example.com',
+      strategy: 'desktop',
+      performanceScore: 75,
+      metrics: { lcp: 2000, fcp: 1000, cls: 0.1, tbt: 100, si: 1500 },
+      opportunities: [
+        {
+          id: 'lazy-images',
+          title: 'Defer offscreen images',
+          description: 'Lazy-load images',
+          score: 0.4,
+          scoreDisplayMode: 'metricSavings',
+          displayValue: 'Save 300ms',
+          metricSavings: { LCP: 300 },
+          details: {
+            type: 'opportunity',
+            items: [
+              {
+                // No URL – should fall back to DOM selector branch
+                node: {
+                  type: 'node',
+                  path: 'body > img.hero',
+                  selector: 'img.hero',
+                  snippet: '<img class="hero" src="…">',
+                  nodeLabel: 'img',
+                },
+                wastedBytes: 1024,
+              },
+            ],
+          },
+        },
+      ],
+      diagnostics: [],
+      passedAudits: [],
+      lighthouseVersion: '10.0.0',
+      fetchTime: new Date().toISOString(),
+    };
+
+    const prompt = svc.buildComprehensivePrompt(data);
+
+    expect(prompt).toContain('DOM: img.hero');
+  });
+
+  it('lists DOM selectors inside diagnostics summary when present', () => {
+    const data: import('../../src/types/psi.js').ComprehensivePsiData = {
+      url: 'https://example.com',
+      strategy: 'mobile',
+      performanceScore: 60,
+      metrics: { lcp: 2500, fcp: 1500, cls: 0.2, tbt: 200, si: 1800 },
+      opportunities: [],
+      diagnostics: [
+        {
+          id: 'dom-size',
+          title: 'Avoid large DOM',
+          description: 'DOM too big',
+          score: null,
+          scoreDisplayMode: 'informative',
+          details: {
+            type: 'table',
+            items: [
+              {
+                node: {
+                  type: 'node',
+                  path: 'body > div.list',
+                  selector: 'div.list',
+                  snippet: '<div class="list">…</div>',
+                  nodeLabel: 'div',
+                },
+              },
+            ],
+          },
+        },
+      ],
+      passedAudits: [],
+      lighthouseVersion: '10.0.0',
+      fetchTime: new Date().toISOString(),
+    };
+
+    const prompt = svc.buildComprehensivePrompt(data);
+
+    expect(prompt).toContain('(div.list)');
+  });
+
+  it('falls back to savings string when displayValue is missing', () => {
+    const data: import('../../src/types/psi.js').ComprehensivePsiData = {
+      url: 'https://example.com',
+      strategy: 'desktop',
+      performanceScore: 80,
+      metrics: { lcp: 1800, fcp: 900, cls: 0.09, tbt: 120, si: 1600 },
+      opportunities: [
+        {
+          id: 'unused-js',
+          title: 'Remove unused JavaScript',
+          description: 'Strip dead code',
+          score: 0.3,
+          scoreDisplayMode: 'metricSavings',
+          // intentionally omit displayValue to trigger savings fallback
+          metricSavings: { LCP: 123 },
+          details: { type: 'opportunity', items: [] },
+        },
+      ],
+      diagnostics: [],
+      passedAudits: [],
+      lighthouseVersion: '10.0.0',
+      fetchTime: new Date().toISOString(),
+    };
+
+    const prompt = svc.buildComprehensivePrompt(data);
+
+    expect(prompt).toMatch(/LCP: 123ms/);
+  });
 }); 
