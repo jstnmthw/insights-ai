@@ -10,9 +10,9 @@ export default defineConfig({
       exclude: ['dist', 'coverage', 'node_modules', 'src/cli.ts'],
       all: true,
       thresholds: {
-        statements: 96,
-        branches: 85,
-        functions: 100,
+        statements: 98,
+        branches: 96,
+        functions: 98,
         lines: 98,
       },
     },

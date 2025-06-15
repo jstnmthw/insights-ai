@@ -70,6 +70,30 @@ describe('config/loadConfig', () => {
     fs.unlinkSync(tempPath);
   });
 
+  it('throws ConfigError when urls property is missing from YAML', () => {
+    // Create a temp YAML without urls property
+    const tempPath = path.join(__dirname, 'no-urls-property.yml');
+    fs.writeFileSync(tempPath, 'other_property: value');
+
+    setEnv({ PSI_KEY: 'dummy', PSI_CONFIG_FILE: tempPath });
+
+    expect(() => loadConfig()).toThrowError(ConfigError);
+
+    fs.unlinkSync(tempPath);
+  });
+
+  it('throws ConfigError when YAML is completely empty', () => {
+    // Create a temp YAML that's completely empty
+    const tempPath = path.join(__dirname, 'empty.yml');
+    fs.writeFileSync(tempPath, '');
+
+    setEnv({ PSI_KEY: 'dummy', PSI_CONFIG_FILE: tempPath });
+
+    expect(() => loadConfig()).toThrowError(ConfigError);
+
+    fs.unlinkSync(tempPath);
+  });
+
   it('uses default env values when optional vars absent', () => {
     clearEnv();
     delete process.env.PSI_STRATEGIES;
@@ -124,5 +148,102 @@ describe('config/loadConfig', () => {
     expect(cfg.ai.apiKey).toBeUndefined();
 
     console.warn = originalWarn;
+  });
+
+  it('disables AI when AI_SUMMARY_ENABLED is false', () => {
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: fixturePath,
+      AI_SUMMARY_ENABLED: 'false',
+      OPENAI_API_KEY: 'openai-key',
+    });
+
+    const cfg = loadConfig();
+    expect(cfg.ai.enabled).toBe(false);
+    expect(cfg.ai.apiKey).toBe('openai-key');
+  });
+
+  it('disables AI when AI_SUMMARY_ENABLED is not set', () => {
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: fixturePath,
+      OPENAI_API_KEY: 'openai-key',
+    });
+    delete process.env.AI_SUMMARY_ENABLED;
+
+    const cfg = loadConfig();
+    expect(cfg.ai.enabled).toBe(false);
+    expect(cfg.ai.apiKey).toBe('openai-key');
+  });
+
+  it('handles case-insensitive AI_SUMMARY_ENABLED values', () => {
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: fixturePath,
+      AI_SUMMARY_ENABLED: 'TRUE',
+      OPENAI_API_KEY: 'openai-key',
+    });
+
+    const cfg = loadConfig();
+    expect(cfg.ai.enabled).toBe(true);
+  });
+
+  it('uses default OpenAI model when not specified', () => {
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: fixturePath,
+      AI_SUMMARY_ENABLED: 'true',
+      OPENAI_API_KEY: 'openai-key',
+    });
+    delete process.env.OPENAI_MODEL;
+
+    const cfg = loadConfig();
+    expect(cfg.ai.model).toBe('gpt-3.5-turbo');
+  });
+
+  it('trims whitespace from OpenAI model', () => {
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: fixturePath,
+      AI_SUMMARY_ENABLED: 'true',
+      OPENAI_API_KEY: 'openai-key',
+      OPENAI_MODEL: '  gpt-4  ',
+    });
+
+    const cfg = loadConfig();
+    expect(cfg.ai.model).toBe('gpt-4');
+  });
+
+  it('trims whitespace from config file path', () => {
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: `  ${fixturePath}  `, // Whitespace around path
+    });
+
+    const cfg = loadConfig();
+    expect(cfg.cfgPath).toBe(fixturePath); // Should be trimmed
+    expect(cfg.urls).toEqual(['https://example.com', 'https://google.com']);
+  });
+
+  it('uses default config file when PSI_CONFIG_FILE is empty string', () => {
+    // Create a temp urls.yml file in the test directory
+    const tempPath = path.join(__dirname, 'urls.yml');
+    fs.writeFileSync(tempPath, 'urls:\n  - https://test.com');
+
+    const originalCwd = process.cwd();
+    process.chdir(__dirname); // Change to test directory so 'urls.yml' can be found
+
+    setEnv({
+      PSI_KEY: 'k',
+      PSI_CONFIG_FILE: '', // Empty string should trigger fallback to 'urls.yml'
+    });
+
+    const cfg = loadConfig();
+    expect(cfg.cfgPath).toBe('urls.yml'); // Should use default
+    expect(cfg.urls).toEqual(['https://test.com']);
+
+    // Cleanup
+    process.chdir(originalCwd);
+    fs.unlinkSync(tempPath);
   });
 });

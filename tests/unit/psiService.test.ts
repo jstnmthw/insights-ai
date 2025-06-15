@@ -1,4 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+
+// Mock setTimeout globally before any imports to ensure retry logic runs instantly
+const originalSetTimeout = globalThis.setTimeout;
+const instantTimeout = ((cb: (...args: any[]) => void) => {
+  cb();
+  return 0 as unknown as ReturnType<typeof setTimeout>;
+}) as typeof setTimeout;
+Object.assign(instantTimeout, { __promisify__: (originalSetTimeout as any).__promisify__ });
+globalThis.setTimeout = instantTimeout;
+
 import axios from 'axios';
 
 import { runPsi } from '../../src/services/psiService.js';
@@ -35,13 +45,11 @@ describe('runPsi', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockedLogService.getReportFilename.mockReturnValue(filename);
-    // Mock console.log to avoid cluttering test output
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   describe('development mode', () => {
     beforeEach(() => {
-      // Mock development mode by setting tsx in argv
       vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', '/path/to/tsx', 'src/cli.ts']);
     });
 
@@ -97,11 +105,25 @@ describe('runPsi', () => {
 
       await expect(runPsi(url, key, strategy, runNumber)).rejects.toThrow(ApiError);
     });
+
+    it('should run in dev mode when NODE_ENV is development', async () => {
+      vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', '/path/to/dist/cli.js']); // production path
+      process.env.NODE_ENV = 'development';
+
+      const cachedData = mockApiResponse(0.88);
+      mockedLogService.readRawReport.mockReturnValue(cachedData as any);
+
+      await runPsi(url, key, strategy, runNumber);
+
+      expect(mockedLogService.readRawReport).toHaveBeenCalledWith(filename);
+      expect(console.log).toHaveBeenCalledWith('[DEV] Existing Report: Found');
+
+      delete process.env.NODE_ENV; // Clean up
+    });
   });
 
   describe('production mode', () => {
     beforeEach(() => {
-      // Mock production mode by setting node in argv
       vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', '/path/to/dist/cli.js']);
     });
 
@@ -119,11 +141,67 @@ describe('runPsi', () => {
       expect(result.score).toBe(85);
     });
 
+    it('should handle missing metrics and score in the API response', async () => {
+      const partialApiData = {
+        lighthouseResult: {
+          categories: {
+            performance: { score: null }, // Missing score
+          },
+          audits: {
+            // Missing 'cumulative-layout-shift' and 'total-blocking-time'
+            'largest-contentful-paint': { displayValue: '2.0 s', numericValue: 2000 },
+            'first-contentful-paint': { displayValue: '1.0 s', numericValue: 1000 },
+          },
+        },
+      };
+      vi.mocked(axios.get).mockResolvedValue({ data: partialApiData as any });
+
+      const result = await runPsi(url, key, strategy, runNumber);
+
+      expect(result).toMatchObject({
+        score: 0, // Should fallback to 0
+        lcp: { display: '2.0 s', numeric: 2000 },
+        fcp: { display: '1.0 s', numeric: 1000 },
+        cls: { display: 'n/a', numeric: 0 }, // Should fallback
+        tbt: { display: 'n/a', numeric: 0 }, // Should fallback
+      });
+    });
+
     it('should throw ApiError if API fails in production mode', async () => {
       vi.mocked(axios.get).mockRejectedValue(new Error('Network Error'));
 
       await expect(runPsi(url, key, strategy, runNumber)).rejects.toThrow(ApiError);
       expect(mockedLogService.saveRawReport).not.toHaveBeenCalled();
     });
+
+    describe('retry logic', () => {
+      it('should retry failed API calls and succeed within max retries', async () => {
+        const apiData = mockApiResponse(0.9);
+
+        vi.mocked(axios.get).mockRejectedValueOnce(new Error('Flaky network'));
+        vi.mocked(axios.get).mockResolvedValueOnce({ data: apiData });
+
+        const promise = runPsi(url, key, strategy, runNumber);
+
+        const result = await promise;
+
+        expect(vi.mocked(axios.get)).toHaveBeenCalledTimes(2);
+        expect(result.score).toBe(90);
+      });
+
+      it('should throw ApiError after exhausting all retries', async () => {
+        vi.mocked(axios.get).mockRejectedValue(new Error('Persistent failure'));
+
+        const promise = runPsi(url, key, strategy, runNumber);
+
+        await expect(promise).rejects.toThrow(ApiError);
+
+        expect(vi.mocked(axios.get)).toHaveBeenCalledTimes(3);
+      });
+    });
   });
+});
+
+afterAll(() => {
+  globalThis.setTimeout = originalSetTimeout;
 }); 

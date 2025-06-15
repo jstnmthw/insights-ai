@@ -512,4 +512,250 @@ describe('utils/reportBuilder.buildComprehensiveMarkdownReport', () => {
     // Should not include passed audits section when empty
     expect(result).not.toContain('### ✅ Passed Audits');
   });
+
+  describe('handles missing data in audit items', () => {
+    it('renders resource table with missing size and ms savings', () => {
+      const auditData = {
+        ...mockAuditData,
+        opportunities: [{
+          ...mockAuditData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'https://a.com/s.css', wastedMs: 250 }, // No totalBytes, has wastedMs
+              { url: 'https://b.com/s.js' }, // No savings info
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{ ...medianResults[0], auditData }];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+
+      expect(report).toContain('| `/s.css` | n/a | 250ms |');
+      expect(report).toContain('| `/s.js` | n/a | n/a |');
+    });
+
+    it('renders element list with missing snippet or score', () => {
+      const auditData = {
+        ...mockAuditData,
+        diagnostics: [{
+          ...mockAuditData.diagnostics[0],
+          details: {
+            type: 'table' as const,
+            items: [
+              // No snippet/score (but snippet is required, so it's an empty string)
+              { node: { type: 'node' as const, selector: 'div.no-snippet', path: '', nodeLabel: '', snippet: '' } },
+              // No score
+              { node: { type: 'node' as const, selector: 'div.no-score', snippet: '<p></p>', path: '', nodeLabel: '' } },
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{ ...medianResults[0], auditData }];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+
+      // Isolate the diagnostics section
+      const diagnosticsSection = report.split('### 🔍 Diagnostics')[1].split('### ✅ Passed Audits')[0];
+
+      // Find the line with the no-snippet element
+      const lines = diagnosticsSection.split('\n');
+      const noSnippetLineIndex = lines.findIndex(line => line.includes('div.no-snippet'));
+      const noScoreLineIndex = lines.findIndex(line => line.includes('div.no-score'));
+
+      // Check that there is no '**Code:**' line between the two elements
+      let hasCodeLine = false;
+      for (let i = noSnippetLineIndex + 1; i < noScoreLineIndex; i++) {
+        if (lines[i].includes('**Code:**')) {
+          hasCodeLine = true;
+          break;
+        }
+      }
+      expect(hasCodeLine).toBe(false);
+
+      // Check that the no-score element DOES have a code line
+      expect(lines[noScoreLineIndex + 1]).toContain('**Code:**');
+    });
+
+    it('renders simple list with items that have no label or url', () => {
+      const auditData = {
+        ...mockAuditData,
+        opportunities: [{
+          ...mockAuditData.opportunities[0],
+          details: {
+            type: 'table' as const,
+            items: [
+              { label: 'Item 1' },
+              {}, // Empty item
+              { url: 'https://example.com' },
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{...medianResults[0], auditData}];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+      // The empty item should not produce a line
+      expect(report).toContain('- Item 1');
+      expect(report).toContain('- https://example.com');
+      const lines = report.split('\n');
+      const simpleListLines = lines.filter(l => l.startsWith('- '));
+      // Only two lines should be generated from the simple list
+      expect(simpleListLines.filter(l => l.includes('Item 1') || l.includes('https://example.com'))).toHaveLength(2);
+    });
+
+    it('renders passed audits without a display value', () => {
+      const auditData = {
+        ...mockAuditData,
+        passedAudits: [{
+          id: 'passed-1',
+          title: 'A Passed Audit Without Display Value',
+          description: '', // Required property
+          score: 1,
+          scoreDisplayMode: 'binary' as const,
+        }],
+      };
+      const results = [{...medianResults[0], auditData}];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+      expect(report).toContain('- **A Passed Audit Without Display Value**');
+      // Ensure no empty parens are added
+      expect(report).not.toContain('()');
+    });
+
+    it('handles invalid URLs in resource table with fallback', () => {
+      const auditData = {
+        ...mockAuditData,
+        opportunities: [{
+          ...mockAuditData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'invalid-url-format', wastedBytes: 1000 }, // Invalid URL that will throw
+              { url: 'https://example.com/valid.js', totalBytes: 2000 },
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{...medianResults[0], auditData}];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+      
+      // Should fall back to original URL when URL constructor throws
+      expect(report).toContain('| `invalid-url-format` |');
+      expect(report).toContain('| `/valid.js` |');
+    });
+
+    it('handles items with only wastedBytes (no totalBytes)', () => {
+      const auditData = {
+        ...mockAuditData,
+        opportunities: [{
+          ...mockAuditData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'https://example.com/file.js', wastedBytes: 1000 }, // Only wastedBytes
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{...medianResults[0], auditData}];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+      
+      expect(report).toContain('| `/file.js` | n/a | 1000 B |');
+    });
+
+    it('handles items with only totalBytes (no wastedBytes)', () => {
+      const auditData = {
+        ...mockAuditData,
+        opportunities: [{
+          ...mockAuditData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'https://example.com/file.js', totalBytes: 2000 }, // Only totalBytes
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{...medianResults[0], auditData}];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+      
+      expect(report).toContain('| `/file.js` | 1.95 KB | n/a |');
+    });
+
+    it('handles element list with items that have no node', () => {
+      const auditData = {
+        ...mockAuditData,
+        diagnostics: [{
+          ...mockAuditData.diagnostics[0],
+          details: {
+            type: 'table' as const,
+            items: [
+              { node: { type: 'node' as const, selector: 'div.valid', snippet: '<div></div>', path: '', nodeLabel: '' } },
+              { score: 0.5 }, // No node property
+              { label: 'Some item' }, // No node property
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{...medianResults[0], auditData}];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+      
+      // Should only render the item with a node
+      expect(report).toContain('- **Element:** `div.valid`');
+      // Items without nodes should not appear in element list
+      const elementLines = report.split('\n').filter(line => line.includes('**Element:**'));
+      expect(elementLines).toHaveLength(1);
+    });
+
+    it('handles items with wastedBytes but no totalBytes to trigger hasBytes branch', () => {
+      const auditData = {
+        ...mockAuditData,
+        opportunities: [{
+          ...mockAuditData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'https://example.com/file1.js', wastedBytes: 1000 }, // Has wastedBytes, no totalBytes
+              { url: 'https://example.com/file2.js' }, // No bytes info
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{...medianResults[0], auditData}];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+      
+      // Should render as resource table because hasBytes is true (wastedBytes exists)
+      expect(report).toContain('| Resource | Size | Potential Savings |');
+      expect(report).toContain('| `/file1.js` | n/a | 1000 B |');
+    });
+
+    it('handles items with totalBytes but no wastedBytes to trigger hasBytes branch', () => {
+      const auditData = {
+        ...mockAuditData,
+        opportunities: [{
+          ...mockAuditData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'https://example.com/file1.js', totalBytes: 2000 }, // Has totalBytes, no wastedBytes
+              { url: 'https://example.com/file2.js' }, // No bytes info
+            ],
+            headings: [],
+          },
+        }],
+      };
+      const results = [{...medianResults[0], auditData}];
+      const report = buildComprehensiveMarkdownReport(cfg, results, '', '');
+      
+      // Should render as resource table because hasBytes is true (totalBytes exists)
+      expect(report).toContain('| Resource | Size | Potential Savings |');
+      expect(report).toContain('| `/file1.js` | 1.95 KB | n/a |');
+    });
+  });
 }); 

@@ -17,6 +17,8 @@ function mockFetch(responseInit: Partial<Response>, json: unknown) {
 
 beforeEach(() => {
   vi.resetModules();
+  vi.resetAllMocks();
+  global.fetch = ORIGINAL_FETCH;
 });
 
 afterEach(() => {
@@ -102,6 +104,22 @@ describe('GptService.generateComprehensiveReportSummary - Basic API Tests', () =
     await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toBeInstanceOf(ApiError);
   });
 
+  it('throws ApiError when response is not valid JSON', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError('Invalid JSON');
+      },
+      text: async () => 'invalid json',
+    })) as unknown as typeof fetch;
+
+    const svc = new GptService({ apiKey: dummyKey });
+    const promise = svc.generateComprehensiveReportSummary(minimalPsiData);
+    await expect(promise).rejects.toBeInstanceOf(ApiError);
+    await expect(promise).rejects.toThrow('Unexpected OpenAI API response shape');
+  });
+
   it('handles error response text gracefully when response.text() fails', async () => {
     const mockResponse = {
       ok: false,
@@ -119,6 +137,39 @@ describe('GptService.generateComprehensiveReportSummary - Basic API Tests', () =
 
     const svc = new GptService({ apiKey: dummyKey });
     await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('throws ApiError on 429 rate limit error', async () => {
+    mockFetch({ ok: false, status: 429 }, { error: 'rate limit exceeded' });
+    const svc = new GptService({ apiKey: dummyKey });
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toThrow('OpenAI API error (429)');
+  });
+
+  it('throws ApiError on 500 server error', async () => {
+    mockFetch({ ok: false, status: 500 }, { error: 'server error' });
+    const svc = new GptService({ apiKey: dummyKey });
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toThrow('OpenAI API error (500)');
+  });
+
+  it('throws ApiError when choices[0] is null or malformed', async () => {
+    const svc = new GptService({ apiKey: dummyKey });
+
+    mockFetch({ ok: true, status: 200 }, { choices: [null] });
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toThrow(
+      'Unexpected OpenAI API response shape'
+    );
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: null }] });
+    await expect(svc.generateComprehensiveReportSummary(minimalPsiData)).rejects.toThrow(
+      'Unexpected OpenAI API response shape'
+    );
+  });
+
+  it('handles empty string content from API', async () => {
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: '' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    const summary = await svc.generateComprehensiveReportSummary(minimalPsiData);
+    expect(summary).toBe('');
   });
 });
 
@@ -244,6 +295,77 @@ describe('GptService.generateComprehensiveReportSummary', () => {
     expect(prompt).toContain('Avoid an excessive DOM size');
     expect(prompt).toContain('styles.css (1024KB wasted)');
     expect(prompt).toContain('body > div.container'); // The element selector appears in the prompt
+  });
+
+  it('handles different performance score severities', async () => {
+    const mockSummary = 'Generated summary';
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: mockSummary } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+
+    // Test "poor" severity
+    await svc.generateComprehensiveReportSummary({ ...comprehensiveData, performanceScore: 40 });
+    let requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    expect(requestBody.messages[0].content).toContain('(poor performance)');
+
+    // Test "needs improvement" severity
+    await svc.generateComprehensiveReportSummary({ ...comprehensiveData, performanceScore: 60 });
+    requestBody = JSON.parse((global.fetch as any).mock.calls[1][1].body);
+    expect(requestBody.messages[0].content).toContain('(needs improvement performance)');
+
+    // Test "good" severity
+    await svc.generateComprehensiveReportSummary({ ...comprehensiveData, performanceScore: 80 });
+    requestBody = JSON.parse((global.fetch as any).mock.calls[2][1].body);
+    expect(requestBody.messages[0].content).toContain('(good performance)');
+  });
+
+  it('handles invalid URLs in opportunity items gracefully', async () => {
+    const dataWithInvalidUrls = {
+      ...comprehensiveData,
+      opportunities: [
+        {
+          ...comprehensiveData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [{ url: 'invalid-url' }],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithInvalidUrls);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    expect(requestBody.messages[0].content).toContain('invalid-url');
+  });
+
+  it('correctly identifies and prioritizes critical opportunities', async () => {
+    const dataWithCriticalOpp = {
+      ...comprehensiveData,
+      opportunities: [
+        {
+          ...comprehensiveData.opportunities[0],
+          title: 'Critical Opportunity',
+          metricSavings: { LCP: 500 }, // High impact
+        },
+        {
+          ...comprehensiveData.opportunities[0],
+          title: 'Regular Opportunity',
+          metricSavings: { FCP: 50 }, // Low impact
+        },
+      ],
+    };
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithCriticalOpp);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    expect(promptContent).toContain('[HIGH IMPACT] Critical Opportunity');
+    expect(promptContent).toContain('[MEDIUM] Regular Opportunity');
   });
 
   it('handles opportunities without details', async () => {
@@ -442,5 +564,251 @@ describe('GptService.generateComprehensiveReportSummary', () => {
 
     // Verify safeReadText was called and handled the error
     expect(mockResponse.text).toHaveBeenCalled();
+  });
+
+  it('handles opportunities with items that have no URL or node selector', async () => {
+    const dataWithMixedItems = {
+      ...comprehensiveData,
+      opportunities: [
+        {
+          ...comprehensiveData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { wastedBytes: 1000 }, // No URL or node
+              { label: 'Some resource' }, // No URL or node
+            ],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithMixedItems);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    // Should fall back to 'Resource' for items without URL or node
+    expect(promptContent).toContain('Resource, Resource');
+  });
+
+  it('handles diagnostics with items that have no URL or node selector', async () => {
+    const dataWithMixedDiagnostics = {
+      ...comprehensiveData,
+      diagnostics: [
+        {
+          id: 'mixed-diagnostic',
+          title: 'Mixed Diagnostic',
+          description: 'A diagnostic with mixed items',
+          score: null,
+          scoreDisplayMode: 'informative' as const,
+          details: {
+            type: 'table' as const,
+            items: [
+              { score: 0.5 }, // No URL or node
+              { label: 'Some item' }, // No URL or node
+            ],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithMixedDiagnostics);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    // Should fall back to 'See details' for items without URL or node
+    expect(promptContent).toContain('Mixed Diagnostic (See details, See details): Check implementation');
+  });
+
+  it('handles opportunities with empty pathname in URL', async () => {
+    const dataWithRootUrls = {
+      ...comprehensiveData,
+      opportunities: [
+        {
+          ...comprehensiveData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'https://example.com/' }, // Root path
+              { url: 'https://example.com' }, // No trailing slash
+            ],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithRootUrls);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    // Should handle root paths gracefully
+    expect(promptContent).toContain('/, ');
+  });
+
+  it('handles diagnostics with empty pathname in URL', async () => {
+    const dataWithRootUrls = {
+      ...comprehensiveData,
+      diagnostics: [
+        {
+          id: 'root-diagnostic',
+          title: 'Root Diagnostic',
+          description: 'A diagnostic with root URLs',
+          score: null,
+          scoreDisplayMode: 'informative' as const,
+          details: {
+            type: 'table' as const,
+            items: [
+              { url: 'https://example.com/' }, // Root path
+              { url: 'https://example.com' }, // No trailing slash
+            ],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithRootUrls);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    // Should handle root paths gracefully
+    expect(promptContent).toContain('Root Diagnostic (/, /): Check implementation');
+  });
+
+  it('handles opportunities with URLs that have empty filename after split', async () => {
+    const dataWithTrailingSlashUrls = {
+      ...comprehensiveData,
+      opportunities: [
+        {
+          ...comprehensiveData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'https://example.com/path/to/directory/' }, // Trailing slash, pop() returns empty
+              { url: 'https://example.com/path/to/file.js' }, // Normal file
+            ],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithTrailingSlashUrls);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    // Should fall back to pathname when pop() returns empty string
+    expect(promptContent).toContain('/path/to/directory/, file.js');
+  });
+
+  it('handles diagnostics with URLs that have empty filename after split', async () => {
+    const dataWithTrailingSlashUrls = {
+      ...comprehensiveData,
+      diagnostics: [
+        {
+          id: 'trailing-slash-diagnostic',
+          title: 'Trailing Slash Diagnostic',
+          description: 'A diagnostic with trailing slash URLs',
+          score: null,
+          scoreDisplayMode: 'informative' as const,
+          details: {
+            type: 'table' as const,
+            items: [
+              { url: 'https://example.com/path/to/directory/' }, // Trailing slash, pop() returns empty
+              { url: 'https://example.com/path/to/file.js' }, // Normal file
+            ],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithTrailingSlashUrls);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    // Should fall back to pathname when pop() returns empty string
+    expect(promptContent).toContain('Trailing Slash Diagnostic (/path/to/directory/, file.js): Check implementation');
+  });
+
+  it('handles opportunities with URLs that have multiple trailing slashes', async () => {
+    const dataWithMultipleSlashes = {
+      ...comprehensiveData,
+      opportunities: [
+        {
+          ...comprehensiveData.opportunities[0],
+          details: {
+            type: 'opportunity' as const,
+            items: [
+              { url: 'https://example.com/path/to/directory///' }, // Multiple trailing slashes
+            ],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithMultipleSlashes);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    // Should fall back to pathname when pop() returns empty string
+    expect(promptContent).toContain('/path/to/directory///');
+  });
+
+  it('handles diagnostics with URLs that have multiple trailing slashes', async () => {
+    const dataWithMultipleSlashes = {
+      ...comprehensiveData,
+      diagnostics: [
+        {
+          id: 'multiple-slash-diagnostic',
+          title: 'Multiple Slash Diagnostic',
+          description: 'A diagnostic with multiple trailing slash URLs',
+          score: null,
+          scoreDisplayMode: 'informative' as const,
+          details: {
+            type: 'table' as const,
+            items: [
+              { url: 'https://example.com/path/to/directory///' }, // Multiple trailing slashes
+            ],
+            headings: [],
+          },
+        },
+      ],
+    };
+
+    mockFetch({ ok: true, status: 200 }, { choices: [{ message: { content: 'summary' } }] });
+    const svc = new GptService({ apiKey: dummyKey });
+    await svc.generateComprehensiveReportSummary(dataWithMultipleSlashes);
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    const promptContent = requestBody.messages[0].content as string;
+
+    // Should fall back to pathname when pop() returns empty string
+    expect(promptContent).toContain('Multiple Slash Diagnostic (/path/to/directory///): Check implementation');
   });
 }); 

@@ -29,6 +29,52 @@ function isDevelopmentMode(): boolean {
   return hasDevIndicators || isNodeEnvDev || isRunningFromSrc;
 }
 
+// Maximum number of times to retry a failed PSI API request.
+const MAX_API_RETRIES = 3 as const;
+
+/**
+ * Fetches PageSpeed Insights data with retry logic.
+ *
+ * The PSI REST endpoint is occasionally flaky. To improve overall robustness
+ * we retry the request up to `MAX_API_RETRIES` times using a simple
+ * exponential back-off (1s, 2s, 3s …). If the request still fails after the
+ * final attempt the original error is re-thrown to be handled upstream.
+ *
+ * @param url - The URL to analyse
+ * @param apiKey - Google PageSpeed Insights API key
+ * @param strategy - Either "desktop" or "mobile"
+ * @throws Error from `axios` after exhausting all retries
+ */
+async function fetchPsiDataWithRetry(
+  url: string,
+  apiKey: string,
+  strategy: 'desktop' | 'mobile'
+): Promise<PsiApiResponse> {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const resp = await axios.get<PsiApiResponse>(
+        'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
+        {
+          params: { url, strategy, key: apiKey },
+        }
+      );
+      return resp.data;
+    } catch (err) {
+      attempt += 1;
+
+      // If we've exceeded our retry budget surface the error to the caller.
+      if (attempt >= MAX_API_RETRIES) {
+        throw err;
+      }
+
+      // Wait `attempt * 500ms` before the next retry – fast enough for tests while still spacing requests.
+      await new Promise((resolve) => globalThis.setTimeout(resolve, attempt * 500));
+    }
+  }
+}
+
 export async function runPsi(
   url: string,
   apiKey: string,
@@ -49,13 +95,7 @@ export async function runPsi(
     } else {
       console.log('[DEV] Existing Report: Missing');
       try {
-        const resp = await axios.get<PsiApiResponse>(
-          'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
-          {
-            params: { url, strategy, key: apiKey },
-          }
-        );
-        data = resp.data;
+        data = await fetchPsiDataWithRetry(url, apiKey, strategy);
 
         console.log(`[DEV] Saving raw report to: ${filename}`);
         saveRawReport(filename, data);
@@ -67,13 +107,7 @@ export async function runPsi(
   } else {
     // Production mode: always fetch fresh data, no caching
     try {
-      const resp = await axios.get<PsiApiResponse>(
-        'https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed',
-        {
-          params: { url, strategy, key: apiKey },
-        }
-      );
-      data = resp.data;
+      data = await fetchPsiDataWithRetry(url, apiKey, strategy);
     } catch (err) {
       throw new ApiError('Failed to fetch PageSpeed Insights data', err);
     }

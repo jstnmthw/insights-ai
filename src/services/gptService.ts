@@ -69,13 +69,17 @@ export class GptService {
       throw new ApiError(`OpenAI API error (${resp.status})`, errorBody);
     }
 
-    const data: unknown = await resp.json();
-    const summary = this.extractSummary(data);
-    if (!summary) {
-      throw new ApiError('Unexpected OpenAI API response shape');
+    try {
+      const data: unknown = await resp.json();
+      const summary = this.extractSummary(data);
+      if (summary == null) {
+        throw new ApiError('Unexpected OpenAI API response shape');
+      }
+      return summary.trim();
+    } catch (err) {
+      // This can happen if resp.json() fails or if summary is null
+      throw new ApiError('Unexpected OpenAI API response shape', err);
     }
-
-    return summary.trim();
   }
 
   /**

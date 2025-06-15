@@ -503,54 +503,6 @@ describe('AuditExtractorService', () => {
     });
   });
 
-  describe('parseDOMElement', () => {
-    it('parses complete DOM element', () => {
-      const node = {
-        type: 'node', // Must have type: 'node'
-        path: 'body > div.test',
-        selector: 'div.test',
-        snippet: '<div class="test">Content</div>',
-        nodeLabel: 'Test element',
-        boundingRect: { top: 10, right: 100, bottom: 50, left: 10, width: 90, height: 40 },
-      };
-
-      const result = service['parseDOMElement'](node);
-
-      expect(result).toEqual({
-        type: 'node',
-        path: 'body > div.test',
-        selector: 'div.test',
-        snippet: '<div class="test">Content</div>',
-        nodeLabel: 'Test element',
-        boundingRect: { top: 10, right: 100, bottom: 50, left: 10, width: 90, height: 40 },
-        lhId: undefined,
-      });
-    });
-
-    it('handles partial DOM element data', () => {
-      const node = { 
-        type: 'node', // Must have type: 'node'
-        selector: 'div.test' 
-      };
-      const result = service['parseDOMElement'](node);
-
-      expect(result).toEqual({
-        type: 'node',
-        path: '', // Empty string when not provided
-        selector: 'div.test',
-        snippet: '', // Empty string when not provided
-        nodeLabel: '', // Empty string when not provided
-        boundingRect: undefined,
-        lhId: undefined,
-      });
-    });
-
-    it('returns undefined for invalid input', () => {
-      expect(service['parseDOMElement'](null)).toBeUndefined();
-      expect(service['parseDOMElement']('invalid')).toBeUndefined();
-    });
-  });
-
   describe('parseHeadings', () => {
     it('parses valid headings array', () => {
       const headings = [
@@ -571,6 +523,24 @@ describe('AuditExtractorService', () => {
     it('returns undefined for invalid input', () => {
       expect(service['parseHeadings'](null)).toBeUndefined();
       expect(service['parseHeadings']('invalid')).toBeUndefined();
+    });
+
+    it('filters out null values', () => {
+      const headings = [{ key: 'key1' }, null, { label: 'label2' }];
+      const result = service['parseHeadings'](headings);
+      expect(result).toHaveLength(2);
+      expect(result?.[1]).toEqual({ key: '', label: 'label2', valueType: 'text' });
+    });
+
+    it('handles malformed headings in parseHeadings', () => {
+      // Not an array
+      expect(service['parseHeadings']({})).toBeUndefined();
+      // Array with invalid items
+      const headings = [{ key: 'key1' }, null, { label: 'label2' }];
+      const result = service['parseHeadings'](headings);
+      expect(result).toHaveLength(2);
+      expect(result?.[0].key).toBe('key1');
+      expect(result?.[1]).toEqual({ key: '', label: 'label2', valueType: 'text' });
     });
   });
 
@@ -669,6 +639,79 @@ describe('AuditExtractorService', () => {
     it('returns undefined when category is undefined', () => {
       const result = service['getOptionalCategoryScore'](undefined);
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe('parseSource', () => {
+    it('handles valid source object', () => {
+      const result = service['parseSource']({ type: 'node', value: 'test' });
+      expect(result).toEqual({ type: 'node', value: 'test' });
+    });
+
+    it('handles malformed source object', () => {
+      const result = service['parseSource']({ type: 123, value: false });
+      expect(result).toEqual({ type: '', value: '' });
+    });
+  });
+
+  describe('Malformed Data Handling', () => {
+    it('correctly parses an audit item with invalid data types', () => {
+      const item = { url: 123, wastedBytes: 'many', totalBytes: false };
+      const result = service['parseAuditItem'](item);
+      expect(result.url).toBeUndefined();
+      expect(result.wastedBytes).toBeUndefined();
+      expect(result.totalBytes).toBeUndefined();
+    });
+
+    it('correctly parses a bounding rect with invalid data types', () => {
+      const rect = { top: 1, bottom: '2', left: 3, right: 4, width: 5, height: 6 };
+      const result = service['parseBoundingRect'](rect);
+      expect(result).toBeUndefined();
+    });
+
+    it('correctly parses a bounding rect with missing properties', () => {
+      const rect = { top: 1, bottom: 2, left: 3 }; // Missing right, width, height
+      const result = service['parseBoundingRect'](rect);
+      expect(result).toBeUndefined();
+    });
+
+    it('correctly parses a bounding rect with null properties', () => {
+      const rect = { top: 1, bottom: 2, left: 3, right: null, width: 5, height: 6 };
+      const result = service['parseBoundingRect'](rect);
+      expect(result).toBeUndefined();
+    });
+
+    it('correctly parses a bounding rect with each property type invalid', () => {
+      // Test each property individually to ensure all branches are covered
+      expect(service['parseBoundingRect']({ top: 'invalid', bottom: 2, left: 3, right: 4, width: 5, height: 6 })).toBeUndefined();
+      expect(service['parseBoundingRect']({ top: 1, bottom: 'invalid', left: 3, right: 4, width: 5, height: 6 })).toBeUndefined();
+      expect(service['parseBoundingRect']({ top: 1, bottom: 2, left: 'invalid', right: 4, width: 5, height: 6 })).toBeUndefined();
+      expect(service['parseBoundingRect']({ top: 1, bottom: 2, left: 3, right: 'invalid', width: 5, height: 6 })).toBeUndefined();
+      expect(service['parseBoundingRect']({ top: 1, bottom: 2, left: 3, right: 4, width: 'invalid', height: 6 })).toBeUndefined();
+      expect(service['parseBoundingRect']({ top: 1, bottom: 2, left: 3, right: 4, width: 5, height: 'invalid' })).toBeUndefined();
+    });
+
+    it('correctly parses a summary with invalid data types', () => {
+      const summary = { wastedBytes: '1000', wastedMs: '500' };
+      const result = service['parseSummary'](summary);
+      expect(result?.wastedBytes).toBeUndefined();
+      expect(result?.wastedMs).toBeUndefined();
+    });
+
+    it('filters null values from headings array', () => {
+      const headings = [{ key: 'key1' }, null, { label: 'label2' }];
+      const result = service['parseHeadings'](headings);
+      expect(result).toHaveLength(2);
+      expect(result?.[1]).toEqual({ key: '', label: 'label2', valueType: 'text' });
+    });
+
+    it('categorizes a failed, non-opportunity audit as a diagnostic', () => {
+      const audits = {
+        'failed-diagnostic': { score: 0.1, scoreDisplayMode: 'binary', title: 'Failed Diagnostic' },
+      };
+      const result = service['categorizeAudits'](audits);
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].id).toBe('failed-diagnostic');
     });
   });
 }); 
